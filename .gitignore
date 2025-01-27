@@ -42,6 +42,3 @@ next-env.d.ts
 .vscode
 *.swp
 *.swo
-
-# Changesets
-.changeset/*.md

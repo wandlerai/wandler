@@ -2,8 +2,7 @@
 	"name": "@wandler/monorepo",
 	"private": true,
 	"workspaces": [
-		"packages/*",
-		"examples/*"
+		"packages/*"
 	],
 	"scripts": {
 		"dev": "cd packages/core && npm run dev",
