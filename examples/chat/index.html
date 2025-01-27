@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Wandler Chat Demo</title>
+		<style>
+			body {
+				font-family: system-ui, -apple-system, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				line-height: 1.5;
+			}
+			#chat {
+				white-space: pre-wrap;
+				background: #f5f5f5;
+				padding: 1rem;
+				border-radius: 4px;
+				margin-bottom: 1rem;
+				min-height: 300px;
+				overflow-y: auto;
+			}
+			.input-container {
+				display: flex;
+				gap: 0.5rem;
+			}
+			#userInput {
+				flex: 1;
+				padding: 0.5rem;
+				font-size: 1rem;
+			}
+			#sendBtn {
+				padding: 0.5rem 1rem;
+			}
+			.status {
+				color: #666;
+				font-style: italic;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Wandler Chat</h1>
+		<div id="chat"></div>
+		<div class="input-container">
+			<input type="text" id="userInput" placeholder="Type your message..." disabled />
+			<button id="sendBtn" disabled>Send</button>
+		</div>
+
+		<script type="module">
+			import { loadModel, streamText } from "wandler";
+
+			const chat = document.getElementById("chat");
+			const userInput = document.getElementById("userInput");
+			const sendBtn = document.getElementById("sendBtn");
+
+			let ai;
+			const messages = [];
+
+			function addMessage(role, content) {
+				messages.push({ role, content });
+				const div = document.createElement("div");
+				div.textContent = `${role === "user" ? "You" : "AI"}: ${content}`;
+				chat.appendChild(div);
+				chat.scrollTop = chat.scrollHeight;
+			}
+
+			// Initialize on page load
+			chat.textContent = "Initializing model...";
+			try {
+				ai = await loadModel("onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX", {
+					onProgress: status => {
+						chat.textContent = status;
+					},
+				});
+
+				chat.textContent = "";
+				userInput.disabled = false;
+				sendBtn.disabled = false;
+			} catch (error) {
+				chat.textContent = `Error loading model: ${error.message}`;
+				console.error(error);
+			}
+
+			async function handleSend() {
+				const text = userInput.value.trim();
+				if (!text) return;
+
+				userInput.value = "";
+				userInput.disabled = true;
+				sendBtn.disabled = true;
+
+				addMessage("user", text);
+
+				try {
+					const result = await streamText({
+						model: ai,
+						messages,
+					});
+
+					// Create a new message div for the response
+					const div = document.createElement("div");
+					div.textContent = "AI: ";
+					chat.appendChild(div);
+
+					let fullResponse = "";
+
+					try {
+						// Stream the response
+						for await (const token of result) {
+							fullResponse += token;
+							div.textContent = `AI: ${fullResponse}`;
+							chat.scrollTop = chat.scrollHeight;
+						}
+
+						// Add the complete response to messages
+						messages.push({ role: "assistant", content: fullResponse });
+					} catch (error) {
+						console.error("Streaming error:", error);
+						div.textContent = `AI: Error during response generation: ${error.message}`;
+					}
+				} catch (error) {
+					console.error("Generation error:", error);
+					addMessage("system", `Error: ${error.message}`);
+				}
+
+				userInput.disabled = false;
+				sendBtn.disabled = false;
+				userInput.focus();
+			}
+
+			sendBtn.onclick = handleSend;
+			userInput.onkeypress = e => {
+				if (e.key === "Enter") handleSend();
+			};
+		</script>
+	</body>
+</html>

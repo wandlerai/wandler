@@ -1,0 +1,24 @@
+{
+	"name": "@wandler/monorepo",
+	"private": true,
+	"workspaces": [
+		"packages/*",
+		"examples/*"
+	],
+	"scripts": {
+		"dev": "cd packages/core && npm run dev",
+		"build": "cd packages/core && npm run build",
+		"test": "cd packages/core && npm test",
+		"typecheck": "cd packages/core && tsc --noEmit",
+		"clean": "rm -rf node_modules && rm -rf packages/*/node_modules && rm -rf examples/*/node_modules",
+		"changeset": "changeset",
+		"version": "changeset version",
+		"release": "npm run build && changeset publish",
+		"format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+		"preinstall": "npx only-allow npm"
+	},
+	"devDependencies": {
+		"@changesets/cli": "^2.27.1",
+		"prettier": "^3.2.4"
+	}
+}

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Wandler Capabilities Test</title>
+		<style>
+			body {
+				font-family: system-ui, -apple-system, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				line-height: 1.5;
+			}
+			#output {
+				white-space: pre-wrap;
+				background: #f5f5f5;
+				padding: 1rem;
+				border-radius: 4px;
+				margin: 1rem 0;
+				min-height: 200px;
+				font-family: monospace;
+			}
+			button {
+				padding: 0.5rem 1rem;
+				font-size: 1rem;
+				margin-right: 0.5rem;
+			}
+			.model-input {
+				display: flex;
+				gap: 1rem;
+				margin: 1rem 0;
+			}
+			#modelId {
+				flex: 1;
+				padding: 0.5rem;
+				font-size: 1rem;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Wandler Capabilities Test</h1>
+
+		<div class="model-input">
+			<input
+				type="text"
+				id="modelId"
+				value="onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX"
+				placeholder="Enter model ID"
+			/>
+			<button id="testBtn">Test Model</button>
+		</div>
+
+		<div>
+			<button id="testAllBtn">Test Common Models</button>
+		</div>
+
+		<div id="output">Results will appear here...</div>
+
+		<script type="module">
+			import { AutoConfig } from "@huggingface/transformers";
+
+			const output = document.getElementById("output");
+			const modelInput = document.getElementById("modelId");
+			const testBtn = document.getElementById("testBtn");
+			const testAllBtn = document.getElementById("testAllBtn");
+
+			async function detectCapabilities(modelId) {
+				try {
+					// Load model config from root using AutoConfig
+					const config = await AutoConfig.from_pretrained(modelId);
+
+					console.log("Raw config:", config);
+
+					// Extract relevant config data
+					const configData = {
+						architectures: config.architectures || [],
+						model_type: config.model_type,
+						transformers_js: config.transformers_js_config || {},
+						dtype: config.torch_dtype,
+						use_cache: config.use_cache,
+						num_attention_heads: config.num_attention_heads,
+						num_key_value_heads: config.num_key_value_heads,
+						hidden_size: config.hidden_size,
+						vision_config: config.vision_config,
+						text_config: config.text_config,
+					};
+
+					console.log("Extracted config data:", configData);
+
+					// Known vision-language model types
+					const VL_MODEL_TYPES = [
+						"idefics", // HuggingFace's IDEFICS
+						"git", // Microsoft's Generative Image-to-Text
+						"blip", // Salesforce's BLIP
+						"vlm", // Generic Vision-Language Models
+						"flava", // Facebook's FLAVA
+						"instructblip", // Salesforce's InstructBLIP
+						"kosmos", // Microsoft's Kosmos
+					];
+
+					// Actual observed fields in config.json
+					const capabilities = {
+						textGeneration:
+							configData.architectures?.some(
+								a =>
+									a.toLowerCase().includes("forcausallm") || // Text generation
+									a.toLowerCase().includes("forconditionalgeneration") ||
+									a.toLowerCase().includes("qwen") // Qwen models are for text generation
+							) ||
+							configData.text_config?.architectures?.some(
+								a =>
+									a.toLowerCase().includes("llm") ||
+									a.toLowerCase().includes("causallm")
+							) ||
+							// Many VL models can generate text
+							VL_MODEL_TYPES.some(type =>
+								configData.model_type?.toLowerCase().includes(type)
+							),
+						textClassification: configData.architectures?.some(a =>
+							a.toLowerCase().includes("forsequenceclassification")
+						),
+						imageGeneration: configData.architectures?.some(
+							a =>
+								a.toLowerCase().includes("forimagegeneration") ||
+								configData.model_type === "stable_diffusion"
+						),
+						vision:
+							configData.architectures?.some(
+								a =>
+									a.toLowerCase().includes("forvision") ||
+									a.toLowerCase().includes("vit") ||
+									configData.model_type?.toLowerCase().includes("vision")
+							) ||
+							Boolean(configData.vision_config) || // Has vision config
+							Boolean(configData.image_size) || // Has image size parameter
+							// Check for known vision-language model types
+							VL_MODEL_TYPES.some(type =>
+								configData.model_type?.toLowerCase().includes(type)
+							),
+						audioProcessing: configData.architectures?.some(
+							a =>
+								a.toLowerCase().includes("foraudioclassification") ||
+								configData.model_type === "whisper"
+						),
+					};
+
+					console.log("Detected capabilities:", capabilities);
+
+					// Add performance hints based on config
+					const performance = {
+						supportsKVCache: configData.use_cache === true,
+						groupedQueryAttention:
+							configData.num_key_value_heads < configData.num_attention_heads,
+						recommendedDtype: configData.transformers_js?.dtype || configData.dtype,
+						kvCacheDtype: configData.transformers_js?.kv_cache_dtype,
+					};
+
+					return {
+						modelId,
+						capabilities,
+						performance,
+						config: configData,
+					};
+				} catch (error) {
+					console.error("Error in detectCapabilities:", error);
+					return {
+						modelId,
+						error: error.message,
+					};
+				}
+			}
+
+			// Common models to test
+			const commonModels = [
+				"onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX", // Text only
+				"HuggingFaceTB/SmolVLM-256M-Instruct", // Vision-Language
+				"microsoft/git-base", // Vision-Language (Generative Image-to-Text)
+				"Salesforce/blip2-opt-2.7b", // Vision-Language (BLIP)
+				"facebook/flava-full", // Vision-Language (FLAVA)
+				"Xenova/whisper-small", // Audio
+			];
+
+			// Test a single model
+			async function testModel(modelId) {
+				const result = await detectCapabilities(modelId);
+				const resultText = JSON.stringify(result, null, 2);
+				output.textContent += `\n=== ${modelId} ===\n${resultText}\n`;
+				output.scrollTop = output.scrollHeight;
+			}
+
+			// Test all common models
+			async function testAllModels() {
+				output.textContent = "";
+				testAllBtn.disabled = true;
+
+				for (const modelId of commonModels) {
+					await testModel(modelId);
+				}
+
+				testAllBtn.disabled = false;
+			}
+
+			// Event handlers
+			testBtn.onclick = () => {
+				const modelId = modelInput.value.trim();
+				if (modelId) {
+					output.textContent = "";
+					testModel(modelId);
+				}
+			};
+
+			testAllBtn.onclick = testAllModels;
+		</script>
+	</body>
+</html>

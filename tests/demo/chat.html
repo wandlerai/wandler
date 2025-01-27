@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Wandler Chat Demo</title>
+		<!-- Add marked for Markdown support -->
+		<script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+		<style>
+			body {
+				font-family:
+					system-ui,
+					-apple-system,
+					sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				line-height: 1.125;
+			}
+			#chat {
+				white-space: pre-wrap;
+				background: #f5f5f5;
+				padding: 1rem;
+				border-radius: 4px;
+				margin-bottom: 1rem;
+				min-height: 300px;
+				overflow-y: auto;
+			}
+			.input-container {
+				display: flex;
+				gap: 0.5rem;
+			}
+			#userInput {
+				flex: 1;
+				padding: 0.5rem;
+				font-size: 1rem;
+			}
+			#sendBtn {
+				padding: 0.5rem 1rem;
+			}
+			.status {
+				color: #666;
+				font-style: italic;
+			}
+			.message {
+				margin-bottom: 1rem;
+				padding: 0.5rem;
+				border-radius: 4px;
+			}
+			.message.user {
+				background: #e3f2fd;
+				margin-left: 2rem;
+			}
+			.message.ai {
+				background: #f5f5f5;
+				margin-right: 2rem;
+			}
+			.message.system {
+				background: #fff3e0;
+			}
+			.think-box {
+				background: #ede7f6;
+				padding: 0.5rem;
+				margin: 0.5rem 0;
+				border-radius: 4px;
+				border-left: 4px solid #673ab7;
+				font-style: italic;
+				color: #5e35b1;
+			}
+			/* Add styles for markdown */
+			.message pre {
+				background: #f8f9fa;
+				padding: 1rem;
+				border-radius: 4px;
+				overflow-x: auto;
+			}
+			.message code {
+				background: #f8f9fa;
+				padding: 0.2rem 0.4rem;
+				border-radius: 2px;
+			}
+			.message h1,
+			.message h2,
+			.message h3 {
+				margin-top: 0.5rem;
+				margin-bottom: 0.25rem;
+			}
+			/* Compact list styles */
+			.message ul,
+			.message ol {
+				margin: 0.15rem 0;
+				padding-left: 1.5rem;
+			}
+			.message li {
+				margin: 0.025rem 0;
+			}
+			.message li > ul,
+			.message li > ol {
+				margin: 0.025rem 0;
+			}
+			.message p {
+				margin: 0.15rem 0;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Wandler Chat</h1>
+		<div id="chat"></div>
+		<div class="input-container">
+			<input type="text" id="userInput" placeholder="Type your message..." disabled />
+			<button id="sendBtn" disabled>Send</button>
+		</div>
+
+		<script type="module">
+			import { loadModel, streamText } from "../../packages/core/index.ts";
+
+			const chat = document.getElementById("chat");
+			const userInput = document.getElementById("userInput");
+			const sendBtn = document.getElementById("sendBtn");
+
+			let ai;
+			const messages = [
+				{
+					role: "system",
+					content:
+						"Never use LaTeX formatting. Always use markdown for any formatting, equations, or mathematical expressions.",
+				},
+			];
+
+			// Configure marked for GitHub Flavored Markdown
+			marked.use({
+				breaks: true,
+				gfm: true,
+			});
+
+			function renderThinkTags(content) {
+				// Handle opening and closing tags separately for streaming
+				return content
+					.replace(/<think>/g, '<div class="think-box">🤔 ')
+					.replace(/<\/think>/g, "</div>");
+			}
+
+			function renderMessage(content, isStreaming = false) {
+				// After streaming, process markdown and think tags
+				try {
+					return marked.parse(renderThinkTags(content));
+				} catch (e) {
+					console.error("Markdown error:", e);
+					return content;
+				}
+			}
+
+			function addMessage(role, content) {
+				messages.push({ role, content });
+				const div = document.createElement("div");
+				div.className = `message ${role}`;
+
+				const prefix = role === "user" ? "You: " : role === "assistant" ? "AI: " : "";
+				div.innerHTML = prefix + renderMessage(content);
+
+				chat.appendChild(div);
+				chat.scrollTop = chat.scrollHeight;
+			}
+
+			// Initialize on page load
+			chat.textContent = "Initializing model...";
+			try {
+				ai = await loadModel("onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX", {
+					onProgress: info => {
+						if (info.status === "progress") {
+							const mb = (info.loaded / (1024 * 1024)).toFixed(1);
+							const total = (info.total / (1024 * 1024)).toFixed(1);
+							const percent = ((info.loaded / info.total) * 100).toFixed(1);
+							chat.textContent = `${info.file}: ${mb}MB / ${total}MB (${percent}%)`;
+						}
+					},
+				});
+
+				chat.textContent = "";
+				userInput.disabled = false;
+				sendBtn.disabled = false;
+			} catch (error) {
+				chat.textContent = `Error loading model: ${error.message}`;
+				console.error(error);
+			}
+
+			async function handleSend() {
+				const text = userInput.value.trim();
+				if (!text) return;
+
+				userInput.value = "";
+				userInput.disabled = true;
+				sendBtn.disabled = true;
+
+				addMessage("user", text);
+
+				try {
+					const result = await streamText({
+						model: ai,
+						messages,
+					});
+
+					// Create a new message div for the response
+					const div = document.createElement("div");
+					div.className = "message ai";
+					div.innerHTML = "AI: ";
+					chat.appendChild(div);
+
+					let fullResponse = "";
+
+					try {
+						// Stream the response
+						for await (const token of result) {
+							fullResponse += token;
+							// During streaming, only handle think tags
+							div.innerHTML = "AI: " + renderMessage(fullResponse, true);
+							chat.scrollTop = chat.scrollHeight;
+						}
+
+						// After streaming complete, render everything
+						div.innerHTML = "AI: " + renderMessage(fullResponse);
+						messages.push({ role: "assistant", content: fullResponse });
+
+						// Log the complete message for debugging
+						console.log("Complete AI response:", fullResponse);
+					} catch (error) {
+						console.error("Streaming error:", error);
+						div.innerHTML = `AI: Error during response generation: ${error.message}`;
+					}
+				} catch (error) {
+					console.error("Generation error:", error);
+					addMessage("system", `Error: ${error.message}`);
+				}
+
+				userInput.disabled = false;
+				sendBtn.disabled = false;
+				userInput.focus();
+			}
+
+			sendBtn.onclick = handleSend;
+			userInput.onkeypress = e => {
+				if (e.key === "Enter") handleSend();
+			};
+		</script>
+	</body>
+</html>
