@@ -1,5 +1,5 @@
 ---
-"@wandler": major
+"wandler": major
 ---
 
 - added `loadModel` to load a model
