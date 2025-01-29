@@ -1,4 +1,4 @@
-# @wandler
+# wandler
 
 <p align="center">
   <img src="../../assets/logo/wandler_v1.png" alt="Wandler Logo">
@@ -15,11 +15,13 @@
 ## Quick Start
 
 ```bash
-npm install @wandler
+npm install wandler
 ```
 
+## Usage
+
 ```typescript
-import { loadModel, streamText } from "@wandler";
+import { loadModel, streamText } from "wandler";
 
 // Load any model
 const model = await loadModel("onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX", {

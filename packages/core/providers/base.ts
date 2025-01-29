@@ -1,41 +1,74 @@
 import { AutoConfig } from "@huggingface/transformers";
-import type { BaseModel, ModelCapabilities, ModelPerformance, ModelOptions, ProgressInfo, ModelDtype } from "@wandler/types/model";
+import type {
+	BaseModel,
+	ModelCapabilities,
+	ModelPerformance,
+	ModelOptions,
+	ProgressInfo,
+	ModelDtype,
+} from "@wandler/types/model";
 
 export abstract class BaseProvider {
-	protected progress = {
-		model: { text: "Model: waiting...", loaded: 0 },
-		tokenizer: { text: "Tokenizer: waiting...", loaded: 0 },
-	};
+	protected progress: Record<string, { loaded: number; total: number }> = {};
 
 	abstract loadModel(modelPath: string, options?: ModelOptions): Promise<BaseModel>;
 
-	protected handleProgress(type: "model" | "tokenizer", progressInfo: ProgressInfo, onProgress?: (info: ProgressInfo) => void) {
-		if (progressInfo.status === "progress" && progressInfo.loaded > this.progress[type].loaded) {
+	protected handleProgress(
+		type: string,
+		progressInfo: ProgressInfo,
+		callback?: (info: ProgressInfo) => void
+	) {
+		// Initialize progress tracking for this type if not exists
+		if (!this.progress[type]) {
+			this.progress[type] = {
+				loaded: 0,
+				total: 0,
+			};
+		}
+
+		// Only update if we have more progress
+		if (
+			progressInfo.status === "progress" &&
+			progressInfo.loaded !== undefined &&
+			progressInfo.loaded > this.progress[type].loaded
+		) {
 			this.progress[type].loaded = progressInfo.loaded;
-			const mb = (progressInfo.loaded / (1024 * 1024)).toFixed(1);
-			const total = (progressInfo.total / (1024 * 1024)).toFixed(1);
-			const percent = ((progressInfo.loaded / progressInfo.total) * 100).toFixed(1);
-			this.progress[type].text = `${type === "model" ? "Model" : "Tokenizer"}: ${mb}MB / ${total}MB (${percent}%)`;
-			
-			onProgress?.({
-				...progressInfo,
-				file: type,
-			});
+
+			// Only calculate percentages if we have both loaded and total
+			if (progressInfo.loaded !== undefined && progressInfo.total !== undefined) {
+				const mb = (progressInfo.loaded / (1024 * 1024)).toFixed(1);
+				const total = (progressInfo.total / (1024 * 1024)).toFixed(1);
+				const percent = ((progressInfo.loaded / progressInfo.total) * 100).toFixed(1);
+				console.log(`${type}: ${mb}MB / ${total}MB (${percent}%)`);
+			}
+		}
+
+		// Call the progress callback if provided
+		if (callback) {
+			callback(progressInfo);
 		}
 	}
 
-	protected async detectCapabilities(
-		modelPath: string
-	): Promise<{
+	protected async detectCapabilities(modelPath: string): Promise<{
 		capabilities: ModelCapabilities;
 		performance: ModelPerformance;
 		config: Record<string, any>;
 	}> {
 		const config = await AutoConfig.from_pretrained(modelPath);
-		const configData = {
-			model_type: config.model_type,
-			architectures: config.architectures,
-			text_config: config.text_config,
+		const configData = config as any;
+
+		// Extract relevant config data
+		const data = {
+			architectures: configData.architectures,
+			model_type: configData.model_type,
+			transformers_js: configData.transformers_js_config,
+			dtype: configData.torch_dtype,
+			use_cache: configData.use_cache,
+			num_attention_heads: configData.num_attention_heads,
+			num_key_value_heads: configData.num_key_value_heads,
+			hidden_size: configData.hidden_size,
+			vision_config: configData.vision_config,
+			text_config: configData.text_config,
 		};
 
 		// Known vision-language model types
@@ -51,21 +84,21 @@ export abstract class BaseProvider {
 
 		const capabilities = {
 			textGeneration:
-				configData.architectures?.some(
+				data.architectures?.some(
 					(a: string) =>
 						a.toLowerCase().includes("forcausallm") || // Text generation
 						a.toLowerCase().includes("forconditionalgeneration") ||
 						a.toLowerCase().includes("qwen") // Qwen models are for text generation
 				) ||
-				configData.text_config?.architectures?.some(
+				data.text_config?.architectures?.some(
 					(a: string) => a.toLowerCase().includes("llm") || a.toLowerCase().includes("causallm")
 				) ||
 				// Many VL models can generate text
-				VL_MODEL_TYPES.some(type => configData.model_type?.toLowerCase().includes(type)),
+				VL_MODEL_TYPES.some(type => data.model_type?.toLowerCase().includes(type)),
 			textClassification: false,
 			imageGeneration: false,
 			audioProcessing: false,
-			vision: VL_MODEL_TYPES.some(type => configData.model_type?.toLowerCase().includes(type)),
+			vision: VL_MODEL_TYPES.some(type => data.model_type?.toLowerCase().includes(type)),
 		};
 
 		const performance = {
@@ -77,7 +110,7 @@ export abstract class BaseProvider {
 		return {
 			capabilities,
 			performance,
-			config: configData,
+			config: data,
 		};
 	}
-} 
+}

@@ -56,10 +56,10 @@ export interface BaseModel {
 }
 
 export interface ProgressInfo {
-	status: "progress" | "ready" | "initiate";
+	status: "progress" | "ready" | "initiate" | "download" | "done";
+	file?: string;
 	loaded?: number;
 	total?: number;
-	file?: string;
 }
 
 export interface ModelOptions {
@@ -70,4 +70,4 @@ export interface ModelOptions {
 }
 
 // Import this to avoid circular dependency
-import type { GenerationConfig } from "./generation"; 
+import type { GenerationConfig } from "./generation";

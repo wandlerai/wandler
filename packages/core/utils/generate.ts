@@ -2,22 +2,13 @@ import { TextStreamer } from "@huggingface/transformers";
 import type { BaseModel } from "@wandler/types/model";
 import type { Message } from "@wandler/types/message";
 import type { StreamResult } from "@wandler/types/stream";
-import type { GenerationConfig } from "@wandler/types/generation";
 
 export async function generateText({
 	model,
 	messages,
-	options = {},
 }: {
 	model: BaseModel;
 	messages: Message[];
-	options?: {
-		max_new_tokens?: number;
-		do_sample?: boolean;
-		temperature?: number;
-		top_p?: number;
-		repetition_penalty?: number;
-	};
 }): Promise<string> {
 	if (!model.capabilities.textGeneration) {
 		throw new Error(`Model ${model.id} doesn't support text generation`);
@@ -28,14 +19,9 @@ export async function generateText({
 		return_dict: true,
 	});
 
-	const generationConfig = {
-		...model.generationConfig,
-		...options,
-	};
-
 	const { sequences } = await model.instance.generate({
 		...inputs,
-		...generationConfig,
+		...model.generationConfig,
 	});
 
 	return model.tokenizer.batch_decode(sequences, {
@@ -131,4 +117,4 @@ export async function streamText({
 		},
 		response: generatePromise,
 	};
-} 
+}

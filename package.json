@@ -6,9 +6,9 @@
 	],
 	"scripts": {
 		"dev": "cd packages/core && npm run dev",
-		"build": "cd packages/core && npm run build",
-		"test": "cd packages/core && npm test",
-		"typecheck": "cd packages/core && tsc --noEmit",
+		"build": "npm run build --workspaces --if-present",
+		"test": "npm run test --workspaces --if-present",
+		"typecheck": "npm run typecheck --workspaces --if-present",
 		"clean": "rm -rf node_modules && rm -rf packages/*/node_modules && rm -rf examples/*/node_modules",
 		"changeset": "changeset",
 		"version": "changeset version",

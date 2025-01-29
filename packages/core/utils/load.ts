@@ -1,6 +1,6 @@
 import { TransformersProvider } from "@wandler/providers/transformers";
 import { DeepseekProvider } from "@wandler/providers/deepseek";
-import type { BaseModel, ModelOptions } from "@wandler/types/model";
+import type { BaseModel } from "@wandler/types/model";
 
 interface ProviderEntry {
 	pattern: RegExp;
@@ -31,4 +31,4 @@ export async function loadModel(
 	const provider = entry?.provider || new TransformersProvider();
 
 	return provider.loadModel(modelPath, options);
-} 
+}

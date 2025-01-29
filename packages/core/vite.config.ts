@@ -12,13 +12,32 @@ export default defineConfig({
 		lib: {
 			entry: resolve(__dirname, "index.ts"),
 			name: "wandler",
-			fileName: "index",
+			formats: ["es", "umd"],
+			fileName: format => {
+				switch (format) {
+					case "es":
+						return "index.mjs";
+					case "umd":
+						return "index.umd.cjs";
+					default:
+						return "index.js";
+				}
+			},
 		},
 		outDir: resolve(__dirname, "dist"),
+		sourcemap: true,
+		rollupOptions: {
+			external: ["@huggingface/transformers"],
+			output: {
+				globals: {
+					"@huggingface/transformers": "transformers",
+				},
+			},
+		},
 	},
 	resolve: {
 		alias: {
-			"@wandler": resolve(__dirname, ".")
-		}
-	}
+			"@wandler": resolve(__dirname, "."),
+		},
+	},
 });
