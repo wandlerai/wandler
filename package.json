@@ -8,6 +8,8 @@
 		"dev": "cd packages/core && npm run dev",
 		"build": "npm run build --workspaces --if-present",
 		"test": "npm run test --workspaces --if-present",
+		"test:watch": "jest --watch",
+		"test:coverage": "jest --coverage",
 		"typecheck": "npm run typecheck --workspaces --if-present",
 		"clean": "rm -rf node_modules && rm -rf packages/*/node_modules && rm -rf examples/*/node_modules",
 		"changeset": "changeset",

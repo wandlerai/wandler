@@ -25,9 +25,9 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "tsc && vite build",
-		"test:unit": "jest tests/unit",
-		"test:browser": "jest tests/browser",
-		"test": "npm run test:unit && npm run test:browser"
+		"test": "jest -c ../../jest.config.cjs",
+		"test:watch": "jest -c ../../jest.config.cjs --watch",
+		"test:coverage": "jest -c ../../jest.config.cjs --coverage"
 	},
 	"keywords": [
 		"ai",

@@ -1,18 +1,19 @@
 {
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "lib": ["ESNext", "DOM"],
-    "strict": true,
-    "outDir": "dist",
-    "declaration": true,
-    "esModuleInterop": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
-  },
-  "include": ["src/**/*", "demo/**/*"],
-  "exclude": ["node_modules", "dist"]
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": ["ESNext", "DOM"],
+		"strict": true,
+		"outDir": "dist",
+		"declaration": true,
+		"esModuleInterop": true,
+		"baseUrl": ".",
+		"paths": {
+			"@wandler": ["packages/core/index.ts"],
+			"@wandler/*": ["packages/core/*"]
+		}
+	},
+	"include": ["packages/**/*", "tests/**/*"],
+	"exclude": ["node_modules", "dist"]
 }

@@ -1,140 +1,29 @@
-# Coding conventions
+You are an expert in TypeScript, "@huggingface/transformers", Node.js, Next.js, React, Shadcn and
+Tailwind.
 
-You are an expert in TypeScript, Node.js, Next.js App Router, React, Shadcn UI, Tailwind, Postgres
-from Supabase managed with Prisma, authentication with Clerk and writing tests with Jest.
+## Core Conventions
 
-## Common Mistakes to Avoid
-
-Please make sure to AVOID the following mistakes:
-
-### Don't use outdated Clerk code
-
-```typescript
-// ❌ DON'T use these
-import { getAuth } from "@clerk/nextjs";
-const { userId } = getAuth(request);
-
-// ✅ ALWAYS use these
-import { auth } from "@clerk/nextjs/server";
-const { userId } = await auth();
-```
-
-## Code Style and Structure
-
-- Write concise, technical TypeScript code with accurate examples
-- Use functional and declarative programming patterns; avoid classes
-- Prefer iteration and modularization over code duplication
-- Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError)
-- Structure files: exported component, subcomponents, helpers, static content, types
-- Always use full imports with @/ prefix (e.g., '@/components/my-component'), never relative imports
-
-## Component File Structure
-
-- Place components directly in the components directory with kebab-case names (e.g.,
-  `my-component.tsx`)
-- Avoid the barrel/index pattern (no component folders with index.tsx)
-- Group related components by feature/domain in subdirectories when needed
-- Keep component files flat and avoid unnecessary nesting
-- Co-locate component-specific types, utilities, and hooks in the same file unless they are shared
-
-## Naming Conventions
-
-- Use lowercase with dashes for directories (e.g., components/auth-wizard)
-- Favor named exports for components
-
-## TypeScript Usage
-
-- Use TypeScript for all code; prefer interfaces over types
-- Avoid enums; use maps instead
-- Use functional components with TypeScript interfaces
-
-## Syntax and Formatting
-
-- Use the "function" keyword for pure functions
-- Avoid unnecessary curly braces in conditionals; use concise syntax for simple statements
-- Use declarative JSX
-
-## UI and Styling
-
-- Use Shadcn UI, Radix, and Tailwind for components and styling
-- Implement responsive design with Tailwind CSS; use a mobile-first approach
-
-## Performance Optimization
-
-- Minimize 'use client', 'useEffect', and 'setState'; favor React Server Components (RSC)
-- Wrap client components in Suspense with fallback
-- Use dynamic loading for non-critical components
-- Optimize images: use WebP format, include size data, implement lazy loading.
-
-## Tools
-
-- use `npx shadcn@latest add` to install shadcn components
-
-## Database Conventions with Prisma
-
-- Use snake_case for table names (e.g., user_profiles, terms_acceptance)
-- Use camelCase for field names
-- Add appropriate indexes for frequently queried fields
-- Include timestamps (createdAt, updatedAt) on all models
-- Use explicit relations with references
-- Keep the schema.prisma file well-documented
-- Use appropriate field types and constraints
-- Debugging: The error `The "payload" argument must be of type object. Received null` means that
-  something with prisma is not working and we should focus on the actual transaction.
-- Use the scripts from package.json to manage the database (like `yarn prisma:migrate`)
-
-## Authentication with Clerk
-
-- Use middleware for global route protection:
-
-    ```typescript
-    import { clerkMiddleware } from "@clerk/nextjs/server";
-    import { NextResponse } from "next/server";
-
-    export default process.env.NEXT_PUBLIC_TEST_MODE === "true"
-    	? () => NextResponse.next()
-    	: clerkMiddleware();
-
-    export const config = {
-    	matcher: [
-    		// Skip Next.js internals and all static files
-    		"/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    		// Always run for API routes
-    		"/api/:path*",
-    	],
-    };
-    ```
-
-- Keep auth checks in middleware, not in individual routes
-
-## TanStack Query Conventions
-
-- Use TanStack Query for client-side data management and caching
-- Structure query keys hierarchically: [entity, identifier, filters]
-- Place query hooks in /hooks/queries and /hooks/mutations directories
-- Name query hooks with 'use' prefix (e.g., useUsers, useCreateUser)
-- Implement error boundaries for query error handling
-- Use prefetchQuery for known data requirements
-- Set consistent staleTime and gcTime in QueryClient provider
-- Implement optimistic updates for mutations when possible
-- Use suspense mode with Suspense boundaries
-- Keep query logic separate from UI components
-- Avoid direct fetch calls when TanStack Query can be used
-- Handle loading and error states consistently across queries
-
-## Testing with Jest
-
-- Unit tests should mock everything that is not part of the unit test
-- Integration tests should mock nothing, but use the APIs directly
-
-## Key Conventions
-
-- Use 'nuqs' for URL search parameter state management
-- Optimize Web Vitals (LCP, CLS, FID)
-- Limit 'use client':
-    - Favor server components and Next.js SSR
-    - Use only for Web API access in small components
-    - Avoid for data fetching or state management
-- Comment everything to make it easy for developers and AI to understand
-
-Follow Next.js docs for Data Fetching, Rendering, and Routing.
+- Focus on providing solutions without unnecessary explanations or apologies. Address issues
+  directly and efficiently.
+- Use functional programming principles; avoid classes and duplication.
+- Use descriptive variable names.
+- Never use relative imports. Instead:
+  - In source files: Use `@wandler/*` imports (our internal module alias)
+  - In test files: Use full paths from root (e.g., `../../packages/core/utils/something`)
+- Note that while we use `@wandler/*` internally, our core package is published as `wandler` on npm
+- Structure files with exported components, subcomponents, helpers, and types.
+- Place components in the components directory with kebab-case names.
+- Avoid barrel/index pattern and keep component files flat; co-locate component-specific types and
+  utilities in the same file.
+- Use lowercase with dashes for directories and favor named exports for components.
+- Use TypeScript for all code; prefer interfaces over types and avoid enums; use maps instead. Use
+  functional components with TypeScript interfaces.
+- Use the "function" keyword for pure functions, avoid unnecessary curly braces in conditionals, and
+  use declarative JSX.
+- Use Tailwind for components and styling; implement responsive design with a mobile-first approach.
+- Minimize 'use client', 'useEffect', and 'setState'; favor React Server Components. Wrap client
+  components in Suspense with fallback and use dynamic loading for non-critical components.
+- Document components and functions, especially for complex logic, to maintain clarity and
+  understanding for future developers.
+- Ensure accessibility in UI components by using semantic HTML and ARIA attributes to create an
+  inclusive experience.

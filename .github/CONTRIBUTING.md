@@ -1,7 +1,46 @@
 # Contributing to Wandler
 
 Thank you for your interest in contributing to Wandler! This document will guide you through our
-release process.
+development and release process.
+
+## Testing
+
+We use Jest for testing. Here's what you need to know:
+
+### Running Tests
+
+```bash
+npm test               # Run all tests
+npm run test:watch    # Watch mode
+npm run test:coverage # Coverage report
+```
+
+### Writing Tests
+
+Key points:
+
+- Tests go in `tests/unit/` or `tests/browser/`
+- Use relative imports in test files
+- Use `@wandler/*` imports in source files
+- Mock external dependencies in `tests/setup.ts`
+
+Example test:
+
+```typescript
+// tests/unit/something.test.ts
+import { Something } from "../../packages/core/utils/something";
+
+// Mock external dependencies
+jest.mock("@huggingface/transformers", () => ({
+	// mock implementation
+}));
+
+describe("Something", () => {
+	it("should work", () => {
+		// test implementation
+	});
+});
+```
 
 ## Release Process
 
@@ -103,3 +142,41 @@ Added new Wandler logo and updated READMEs to use it.
 ## Questions?
 
 If you have any questions about the release process, please open an issue or ask in our discussions.
+
+## Imports
+
+For source files:
+
+- Use `@wandler/*` imports in source files (NOT `@wandler/core/*`)
+- Never use relative imports (`../`, `./`) in source files
+- Never use `index` files for exports/imports
+- Always import from the specific file
+
+Example for source files:
+
+```ts
+// Good
+import { WorkerManager } from "@wandler/utils/worker-manager";
+import type { BaseModel } from "@wandler/types/model";
+
+// Bad
+import { WorkerManager } from "./worker-manager";
+import type { BaseModel } from "../types/model";
+```
+
+For test files:
+
+- Use relative imports in test files
+- Import from the full path (e.g., `../../packages/core/utils/something`)
+
+Example for test files:
+
+```ts
+// Good
+import { WorkerManager } from "../../packages/core/utils/worker-manager";
+import type { BaseModel } from "../../packages/core/types/model";
+
+// Bad
+import { WorkerManager } from "@wandler/utils/worker-manager";
+import type { BaseModel } from "@wandler/types/model";
+```

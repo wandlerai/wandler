@@ -1,6 +1,7 @@
 // Core functionality
 export { loadModel } from "@wandler/utils/load";
 export { generateText, streamText } from "@wandler/utils/generate";
+export { BaseProvider } from "@wandler/providers/base";
 
 // Types
 export type { Message } from "@wandler/types/message";
