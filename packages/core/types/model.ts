@@ -40,7 +40,12 @@ export interface ModelPerformance {
 export interface ModelConfig {
 	dtype: ModelDtype;
 	device: ModelDevice;
-	generationConfig: GenerationConfig;
+	generationConfig: Record<string, any>;
+	performance?: {
+		supportsKVCache?: boolean;
+		groupedQueryAttention?: boolean;
+		recommendedDtype?: ModelDtype;
+	};
 }
 
 export interface BaseModel {
@@ -53,6 +58,10 @@ export interface BaseModel {
 	processor?: any;
 	instance?: any;
 	generationConfig?: GenerationConfig;
+	dispose?: () => void;
+	worker?: {
+		bridge: any;
+	};
 }
 
 export interface ProgressInfo {
@@ -67,6 +76,12 @@ export interface ModelOptions {
 	dtype?: ModelDtype;
 	device?: ModelDevice;
 	onProgress?: (info: ProgressInfo) => void;
+	useWorker?: boolean;
+	fallback?: boolean;
+	workerOptions?: {
+		terminateOnIdle?: boolean;
+		timeout?: number;
+	};
 }
 
 // Import this to avoid circular dependency

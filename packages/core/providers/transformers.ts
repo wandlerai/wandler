@@ -1,6 +1,6 @@
 import { AutoTokenizer, AutoModelForCausalLM } from "@huggingface/transformers";
 import { BaseProvider } from "@wandler/providers/base";
-import type { BaseModel, ModelConfig, ModelOptions } from "@wandler/types/model";
+import type { BaseModel, ModelConfig, ModelOptions, ModelPerformance } from "@wandler/types/model";
 
 export class TransformersProvider extends BaseProvider {
 	private modelConfig: ModelConfig = {
@@ -41,4 +41,16 @@ export class TransformersProvider extends BaseProvider {
 			generationConfig: this.modelConfig.generationConfig,
 		};
 	}
-} 
+
+	getGenerationConfig(modelPath: string) {
+		return this.modelConfig.generationConfig;
+	}
+
+	getModelPerformance(modelPath: string): ModelPerformance {
+		return {
+			supportsKVCache: true,
+			groupedQueryAttention: false,
+			recommendedDtype: this.modelConfig.dtype,
+		};
+	}
+}

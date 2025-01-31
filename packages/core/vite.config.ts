@@ -10,18 +10,14 @@ export default defineConfig({
 	},
 	build: {
 		lib: {
-			entry: resolve(__dirname, "index.ts"),
-			name: "wandler",
+			entry: {
+				index: resolve(__dirname, "index.ts"),
+				"worker/worker": resolve(__dirname, "worker/worker.ts"),
+			},
 			formats: ["es", "umd"],
-			fileName: format => {
-				switch (format) {
-					case "es":
-						return "index.mjs";
-					case "umd":
-						return "index.umd.cjs";
-					default:
-						return "index.js";
-				}
+			fileName: (format, entryName) => {
+				const ext = format === "es" ? "mjs" : format === "umd" ? "umd.cjs" : "js";
+				return `${entryName}.${ext}`;
 			},
 		},
 		outDir: resolve(__dirname, "dist"),

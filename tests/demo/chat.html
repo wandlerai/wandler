@@ -41,6 +41,11 @@
 			.status {
 				color: #666;
 				font-style: italic;
+				margin-bottom: 1rem;
+				padding: 0.5rem;
+				background: #e8eaf6;
+				border-radius: 4px;
+				border-left: 4px solid #3f51b5;
 			}
 			.message {
 				margin-bottom: 1rem;
@@ -122,8 +127,7 @@
 			const messages = [
 				{
 					role: "system",
-					content:
-						"Never use LaTeX formatting. Always use markdown for any formatting, equations, or mathematical expressions.",
+					content: "You are a helpful assistant that can answer questions and help with tasks.",
 				},
 			];
 
@@ -177,6 +181,12 @@
 				});
 
 				chat.textContent = "";
+				// Add worker status message
+				const statusDiv = document.createElement("div");
+				statusDiv.className = "status";
+				statusDiv.textContent = `Running in ${ai.provider === "worker" ? "Worker" : "Main"} thread`;
+				chat.appendChild(statusDiv);
+
 				userInput.disabled = false;
 				sendBtn.disabled = false;
 			} catch (error) {

@@ -13,6 +13,10 @@ export abstract class BaseProvider {
 
 	abstract loadModel(modelPath: string, options?: ModelOptions): Promise<BaseModel>;
 
+	abstract getGenerationConfig(modelPath: string): Record<string, any>;
+
+	abstract getModelPerformance(modelPath: string): ModelPerformance;
+
 	protected handleProgress(
 		type: string,
 		progressInfo: ProgressInfo,

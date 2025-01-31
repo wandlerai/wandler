@@ -11,10 +11,16 @@
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.mjs",
 			"require": "./dist/index.umd.cjs"
+		},
+		"./worker": {
+			"types": "./dist/worker/worker.d.ts",
+			"import": "./dist/worker/worker.mjs",
+			"require": "./dist/worker/worker.cjs"
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"dist/worker"
 	],
 	"scripts": {
 		"dev": "vite",

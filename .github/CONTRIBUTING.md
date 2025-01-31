@@ -28,15 +28,7 @@ releases. This helps us maintain a clear history of changes and automate our rel
    - Ask what type of version change it is (major/minor/patch)
    - Ask for a description of the changes
 
-3. **Build the project**
-
-   ```bash
-   npm run build
-   ```
-
-   This builds all packages in the workspace to ensure everything works correctly.
-
-4. **Version packages**
+3. **Version packages**
 
    ```bash
    npm run version
@@ -48,7 +40,7 @@ releases. This helps us maintain a clear history of changes and automate our rel
    - Updates changelogs
    - Creates a commit with these changes
 
-5. **Publish packages**
+4. **Publish packages**
    ```bash
    npm run release
    ```
@@ -97,7 +89,6 @@ Added new Wandler logo and updated READMEs to use it.
 ### Tips
 
 - Always create a changeset for user-facing changes
-- Build the project locally before pushing to ensure everything works
 - Let the GitHub Actions handle the actual publishing
 - Monitor the release PR for any conflicts or issues
 
@@ -107,8 +98,7 @@ Added new Wandler logo and updated READMEs to use it.
 2. Create a feature branch
 3. Make your changes
 4. Add a changeset
-5. Build and test locally
-6. Create a pull request
+5. Create a pull request
 
 ## Questions?
 
