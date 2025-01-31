@@ -1,9 +1,9 @@
 import { AutoTokenizer, AutoModelForCausalLM } from "@huggingface/transformers";
 import { BaseProvider } from "@wandler/providers/base";
-import type { BaseModel, ModelConfig, ModelOptions, ModelPerformance } from "@wandler/types/model";
+import type { BaseModel, ModelConfig, ModelOptions } from "@wandler/types/model";
 
 export class TransformersProvider extends BaseProvider {
-	private modelConfig: ModelConfig = {
+	protected baseConfig: ModelConfig = {
 		dtype: "auto",
 		device: "webgpu",
 		generationConfig: {
@@ -12,10 +12,19 @@ export class TransformersProvider extends BaseProvider {
 			temperature: 1.0,
 			top_p: 1.0,
 		},
+		performance: {
+			supportsKVCache: true,
+			groupedQueryAttention: false,
+			recommendedDtype: "auto",
+		},
 	};
+
+	// No model-specific overrides by default
+	protected modelConfigs: Record<string, Partial<ModelConfig>> = {};
 
 	async loadModel(modelPath: string, options: ModelOptions = {}): Promise<BaseModel> {
 		const { capabilities, performance, config } = await this.detectCapabilities(modelPath);
+		const modelConfig = this.getConfigForModel(modelPath);
 
 		// Load tokenizer and model
 		const [tokenizer, instance] = await Promise.all([
@@ -24,8 +33,8 @@ export class TransformersProvider extends BaseProvider {
 			}),
 			AutoModelForCausalLM.from_pretrained(modelPath, {
 				...options,
-				dtype: options.dtype || this.modelConfig.dtype,
-				device: options.device || this.modelConfig.device,
+				dtype: options.dtype || modelConfig.dtype,
+				device: options.device || modelConfig.device,
 				progress_callback: info => this.handleProgress("model", info, options.onProgress),
 			}),
 		]);
@@ -34,23 +43,14 @@ export class TransformersProvider extends BaseProvider {
 			id: modelPath,
 			provider: "transformers",
 			capabilities,
-			performance,
+			performance: {
+				...performance,
+				...modelConfig.performance,
+			},
 			config,
 			tokenizer,
 			instance,
-			generationConfig: this.modelConfig.generationConfig,
-		};
-	}
-
-	getGenerationConfig(modelPath: string) {
-		return this.modelConfig.generationConfig;
-	}
-
-	getModelPerformance(modelPath: string): ModelPerformance {
-		return {
-			supportsKVCache: true,
-			groupedQueryAttention: false,
-			recommendedDtype: this.modelConfig.dtype,
+			generationConfig: modelConfig.generationConfig,
 		};
 	}
 }

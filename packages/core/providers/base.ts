@@ -6,16 +6,44 @@ import type {
 	ModelOptions,
 	ProgressInfo,
 	ModelDtype,
+	ModelConfig,
 } from "@wandler/types/model";
 
 export abstract class BaseProvider {
 	protected progress: Record<string, { loaded: number; total: number }> = {};
 
+	// Base configuration that all providers should override
+	protected abstract baseConfig: ModelConfig;
+
+	// Model-specific configurations that override the base config
+	protected abstract modelConfigs: Record<string, Partial<ModelConfig>>;
+
 	abstract loadModel(modelPath: string, options?: ModelOptions): Promise<BaseModel>;
 
-	abstract getGenerationConfig(modelPath: string): Record<string, any>;
+	protected getConfigForModel(modelPath: string): ModelConfig {
+		const modelConfig = this.modelConfigs[modelPath] || {};
+		return {
+			...this.baseConfig,
+			...modelConfig,
+			// Deep merge for nested objects
+			generationConfig: {
+				...this.baseConfig.generationConfig,
+				...modelConfig.generationConfig,
+			},
+			performance: {
+				...this.baseConfig.performance,
+				...(modelConfig.performance || {}),
+			},
+		};
+	}
 
-	abstract getModelPerformance(modelPath: string): ModelPerformance;
+	getGenerationConfig(modelPath: string): Record<string, any> {
+		return this.getConfigForModel(modelPath).generationConfig;
+	}
+
+	getModelPerformance(modelPath: string): ModelPerformance {
+		return this.getConfigForModel(modelPath).performance;
+	}
 
 	protected handleProgress(
 		type: string,
@@ -37,14 +65,6 @@ export abstract class BaseProvider {
 			progressInfo.loaded > this.progress[type].loaded
 		) {
 			this.progress[type].loaded = progressInfo.loaded;
-
-			// Only calculate percentages if we have both loaded and total
-			if (progressInfo.loaded !== undefined && progressInfo.total !== undefined) {
-				const mb = (progressInfo.loaded / (1024 * 1024)).toFixed(1);
-				const total = (progressInfo.total / (1024 * 1024)).toFixed(1);
-				const percent = ((progressInfo.loaded / progressInfo.total) * 100).toFixed(1);
-				console.log(`${type}: ${mb}MB / ${total}MB (${percent}%)`);
-			}
 		}
 
 		// Call the progress callback if provided

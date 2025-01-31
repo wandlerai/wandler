@@ -2,6 +2,7 @@ import { AutoTokenizer, AutoModelForCausalLM, TextStreamer } from "@huggingface/
 import type { WorkerMessage, WorkerResponse } from "./types";
 import type { BaseModel } from "@wandler/types/model";
 import type { ModelPerformance, ModelDevice } from "@wandler/types/model";
+import { getProvider } from "@wandler/providers/registry";
 
 let model: BaseModel | null = null;
 
@@ -31,62 +32,35 @@ function createSerializableModel(model: BaseModel) {
 	};
 }
 
-async function loadModel(modelPath: string, options: WorkerOptions = {}) {
+async function loadModel(modelPath: string, options: any = {}) {
 	try {
-		// Load tokenizer and model
-		const [tokenizer, instance] = await Promise.all([
-			AutoTokenizer.from_pretrained(modelPath, {
-				progress_callback: info => {
-					sendResponse({
-						type: "progress",
-						payload: { ...info, type: "tokenizer" },
-						id: "progress",
-					});
-				},
-			}),
-			AutoModelForCausalLM.from_pretrained(modelPath, {
-				dtype: options.performance?.recommendedDtype || "auto",
-				device: options.device || "webgpu",
-				progress_callback: info => {
-					sendResponse({
-						type: "progress",
-						payload: { ...info, type: "model" },
-						id: "progress",
-					});
-				},
-			}),
-		]);
+		// Get the appropriate provider
+		const provider = getProvider(modelPath);
 
-		// Create the model instance with provider's settings
-		model = {
-			id: modelPath,
-			tokenizer,
-			instance,
-			capabilities: {
-				textGeneration: true,
-				textClassification: false,
-				imageGeneration: false,
-				audioProcessing: false,
-				vision: false,
+		// Wrap the progress callback to send through worker
+		const wrappedOptions = {
+			...options,
+			onProgress: (info: any) => {
+				sendResponse({
+					type: "progress",
+					payload: info,
+					id: "progress",
+				});
 			},
-			performance: options.performance || {
-				supportsKVCache: true,
-				groupedQueryAttention: false,
-				recommendedDtype: "auto",
-			},
-			provider: "worker",
-			config: {},
-			generationConfig: options.generationConfig || {},
 		};
 
+		// Use the provider to load the model
+		model = await provider.loadModel(modelPath, wrappedOptions);
+
+		console.log("[Worker] Model loaded with provider:", provider.constructor.name);
 		console.log("[Worker] Model performance settings:", model.performance);
 		console.log("[Worker] Using dtype:", options.performance?.recommendedDtype || "auto");
 		console.log("[Worker] Using device:", options.device || "webgpu");
 
 		console.log("[Worker] Warming up model...");
 		// Warm up the model with a dummy input
-		const warmupInput = tokenizer("Hello");
-		await instance.generate({ ...warmupInput, max_new_tokens: 1 });
+		const warmupInput = model.tokenizer("Hello");
+		await model.instance.generate({ ...warmupInput, max_new_tokens: 1 });
 		console.log("[Worker] Model warmed up");
 
 		// Return a serializable version of the model
