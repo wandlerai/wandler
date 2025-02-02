@@ -1,7 +1,7 @@
 # wandler
 
 <p align="center">
-  <img src="../../assets/logo/wandler_v1.png" alt="Wandler Logo">
+  <img src="../../assets/logo/wandler_logo_v4.svg" alt="Wandler Logo">
 </p>
 
 <p align="center">
