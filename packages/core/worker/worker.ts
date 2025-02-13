@@ -1,8 +1,9 @@
-import { AutoTokenizer, AutoModelForCausalLM, TextStreamer } from "@huggingface/transformers";
+import { TextStreamer } from "@huggingface/transformers";
 import type { WorkerMessage, WorkerResponse } from "./types";
 import type { BaseModel } from "@wandler/types/model";
 import type { ModelPerformance, ModelDevice } from "@wandler/types/model";
 import { getProvider } from "@wandler/providers/registry";
+import { type GenerationOptions, createGenerationConfig } from "@wandler/utils/generation-defaults";
 
 let model: BaseModel | null = null;
 
@@ -98,21 +99,13 @@ async function generateText(messages: any[], options = {}) {
 	return result;
 }
 
-async function streamText(
-	messages: any[],
-	options: {
-		max_new_tokens?: number;
-		do_sample?: boolean;
-		temperature?: number;
-		top_p?: number;
-		repetition_penalty?: number;
-	} = {}
-) {
+async function streamText(messages: any[], options: GenerationOptions = {}) {
 	if (!model?.tokenizer || !model.instance) {
 		throw new Error("Model not loaded");
 	}
 
 	console.log("[Worker] Starting text streaming with messages:", messages);
+	console.log("[Worker] Starting text streaming with options:", options);
 
 	try {
 		const inputs = model.tokenizer.apply_chat_template(messages, {
@@ -133,7 +126,6 @@ async function streamText(
 			callback_function: (token: string) => {
 				tokenCount++;
 				console.log(`[Worker] Streaming token #${tokenCount}:`, token);
-				console.log("[Worker] Sending stream response for token");
 				sendResponse({
 					type: "stream",
 					payload: token,
@@ -142,22 +134,15 @@ async function streamText(
 			},
 		});
 
-		// Get the base generation config from the model
-		const baseConfig = {
-			...model.generationConfig,
+		// Use the options directly since defaults are handled in stream-text.ts
+		const generationConfig = {
 			...options,
 			return_dict_in_generate: true,
 			output_scores: false,
 			streamer,
+			// Only add KV cache if supported
+			...(model.performance.supportsKVCache ? { past_key_values: past_key_values_cache } : {}),
 		};
-
-		// Only add KV cache if the model supports it (check performance.supportsKVCache)
-		const generationConfig = model.performance.supportsKVCache
-			? {
-					...baseConfig,
-					past_key_values: past_key_values_cache,
-				}
-			: baseConfig;
 
 		console.log("[Worker] Generation config:", generationConfig);
 		console.log("[Worker] Model instance config:", model.instance.config);
@@ -258,8 +243,13 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 					throw new Error("Model not loaded");
 				}
 				const result = await streamText(payload.messages, {
-					...model.generationConfig, // Use model's generation config as base
-					...payload, // Override with any provided options
+					max_new_tokens: payload.max_new_tokens,
+					temperature: payload.temperature,
+					top_p: payload.top_p,
+					do_sample: payload.do_sample,
+					repetition_penalty: payload.repetition_penalty,
+					stop: payload.stop,
+					seed: payload.seed,
 				});
 				// Send final response after all tokens have been streamed
 				sendResponse({ type: "generated", payload: result, id });
