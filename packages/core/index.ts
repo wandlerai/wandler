@@ -1,6 +1,6 @@
 // Core functionality
 export { loadModel } from "@wandler/utils/load";
-export { generateText } from "@wandler/utils/generate";
+export { generateText } from "@wandler/utils/generate-text";
 export { streamText } from "@wandler/utils/stream-text";
 export { BaseProvider } from "@wandler/providers/base";
 
@@ -16,10 +16,13 @@ export type {
 	ProgressInfo,
 	ModelConfig,
 } from "@wandler/types/model";
-export type { GenerationConfig } from "@wandler/types/generation";
+export type {
+	GenerationConfig,
+	StreamingGenerationOptions,
+	NonStreamingGenerationOptions,
+} from "@wandler/types/generation";
 export type {
 	StreamResult,
-	StreamTextOptions,
 	LanguageModel,
 	CoreMessage,
 	Tool,

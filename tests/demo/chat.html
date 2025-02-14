@@ -180,6 +180,11 @@
 					},
 				});
 
+				// Verify model capabilities
+				if (!ai || !ai.capabilities?.textGeneration) {
+					throw new Error("Model does not support text generation");
+				}
+
 				chat.textContent = "";
 				// Add worker status message
 				const statusDiv = document.createElement("div");

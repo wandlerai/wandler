@@ -1,9 +1,12 @@
 import { TextStreamer } from "@huggingface/transformers";
 import type { WorkerMessage, WorkerResponse } from "./types";
-import type { BaseModel } from "@wandler/types/model";
-import type { ModelPerformance, ModelDevice } from "@wandler/types/model";
-import { getProvider } from "@wandler/providers/registry";
-import { type GenerationOptions, createGenerationConfig } from "@wandler/utils/generation-defaults";
+import type { BaseModel } from "../types/model";
+import type { ModelPerformance, ModelDevice } from "../types/model";
+import { getProvider } from "../providers/registry";
+import { generateWithTransformers, type GenerateConfig } from "../utils/transformers";
+import type { Message } from "../types/message";
+import { prepareMessages } from "../utils/message-utils";
+import type { BaseGenerationOptions } from "../types/generation";
 
 let model: BaseModel | null = null;
 
@@ -22,11 +25,20 @@ function sendResponse(response: WorkerResponse) {
 }
 
 function createSerializableModel(model: BaseModel) {
+	// Ensure capabilities exist with proper defaults
+	const capabilities = {
+		textGeneration: model.capabilities?.textGeneration ?? false,
+		textClassification: model.capabilities?.textClassification ?? false,
+		imageGeneration: model.capabilities?.imageGeneration ?? false,
+		audioProcessing: model.capabilities?.audioProcessing ?? false,
+		vision: model.capabilities?.vision ?? false,
+	};
+
 	// Create a copy without functions and non-serializable parts
 	return {
 		id: model.id,
 		provider: "worker",
-		capabilities: model.capabilities,
+		capabilities,
 		performance: model.performance,
 		config: model.config,
 		// Don't send tokenizer and instance - they stay in the worker
@@ -54,6 +66,7 @@ async function loadModel(modelPath: string, options: any = {}) {
 		model = await provider.loadModel(modelPath, wrappedOptions);
 
 		console.log("[Worker] Model loaded with provider:", provider.constructor.name);
+		console.log("[Worker] Model capabilities:", model.capabilities);
 		console.log("[Worker] Model performance settings:", model.performance);
 		console.log("[Worker] Using dtype:", options.performance?.recommendedDtype || "auto");
 		console.log("[Worker] Using device:", options.device || "webgpu");
@@ -72,60 +85,39 @@ async function loadModel(modelPath: string, options: any = {}) {
 	}
 }
 
-async function generateText(messages: any[], options = {}) {
+async function handleGenerateText(messages: any[], options = {}) {
 	if (!model?.tokenizer || !model.instance) {
 		throw new Error("Model not loaded");
 	}
 
 	console.log("[Worker] Generating text with messages:", messages);
+	console.log("[Worker] Generation options:", options);
 
-	const inputs = model.tokenizer.apply_chat_template(messages, {
-		add_generation_prompt: true,
-		return_dict: true,
-	});
-	console.log("[Worker] Applied chat template:", inputs);
+	try {
+		// Use the core transformer layer
+		const { result, tokenCount } = await generateWithTransformers(model, {
+			messages,
+			...options,
+		});
 
-	const { sequences } = await model.instance.generate({
-		...inputs,
-		...options,
-	});
-	console.log("[Worker] Generated sequences:", sequences);
-
-	const result = model.tokenizer.batch_decode(sequences, {
-		skip_special_tokens: true,
-	})[0];
-	console.log("[Worker] Final decoded result:", result);
-
-	return result;
+		console.log("[Worker] Generation complete, result:", result);
+		return { result, tokenCount };
+	} catch (error) {
+		console.error("[Worker] Generation error:", error);
+		throw error;
+	}
 }
 
-async function streamText(messages: any[], options: GenerationOptions = {}) {
+async function handleStreamText(messages: any[], options = {}) {
 	if (!model?.tokenizer || !model.instance) {
 		throw new Error("Model not loaded");
 	}
 
-	console.log("[Worker] Starting text streaming with messages:", messages);
-	console.log("[Worker] Starting text streaming with options:", options);
-
 	try {
-		const inputs = model.tokenizer.apply_chat_template(messages, {
-			add_generation_prompt: true,
-			return_dict: true,
-		});
-		console.log("[Worker] Applied chat template for streaming:", inputs);
-		console.log("[Worker] Input token ids:", inputs.input_ids.tolist());
-		console.log(
-			"[Worker] Input decoded:",
-			model.tokenizer.batch_decode(inputs.input_ids.tolist(), { skip_special_tokens: false })
-		);
-
-		let tokenCount = 0;
-		const streamer = new TextStreamer(model.tokenizer, {
-			skip_prompt: true,
-			skip_special_tokens: true,
-			callback_function: (token: string) => {
-				tokenCount++;
-				console.log(`[Worker] Streaming token #${tokenCount}:`, token);
+		await generateWithTransformers(model, {
+			messages,
+			...options,
+			streamCallback: (token: string) => {
 				sendResponse({
 					type: "stream",
 					payload: token,
@@ -133,71 +125,15 @@ async function streamText(messages: any[], options: GenerationOptions = {}) {
 				});
 			},
 		});
-
-		// Use the options directly since defaults are handled in stream-text.ts
-		const generationConfig = {
-			...options,
-			return_dict_in_generate: true,
-			output_scores: false,
-			streamer,
-			// Only add KV cache if supported
-			...(model.performance.supportsKVCache ? { past_key_values: past_key_values_cache } : {}),
-		};
-
-		console.log("[Worker] Generation config:", generationConfig);
-		console.log("[Worker] Model instance config:", model.instance.config);
-		console.log("[Worker] KV Cache enabled:", model.performance.supportsKVCache);
-
-		console.log("[Worker] Starting generation with streamer");
-		const output = await model.instance
-			.generate({
-				...inputs,
-				...generationConfig,
-			})
-			.catch((error: any) => {
-				console.error("[Worker] Generation error details:", {
-					error,
-					inputs,
-					generationConfig,
-					modelConfig: model.instance.config,
-					kvCacheEnabled: model.performance.supportsKVCache,
-				});
-				throw error;
-			});
-
-		// Only store past key values if the model supports KV cache
-		if (model.performance.supportsKVCache) {
-			past_key_values_cache = output.past_key_values;
-		}
-
-		console.log("[Worker] Generation complete, raw output:", output);
-		console.log("[Worker] Total tokens streamed:", tokenCount);
-		console.log("[Worker] Sequences shape:", output.sequences?.shape);
-		console.log("[Worker] Output type:", typeof output);
-		console.log("[Worker] Output keys:", Object.keys(output));
-
-		const sequences = Array.isArray(output) ? output : output.sequences;
-		if (!sequences) {
-			throw new Error("No sequences in model output");
-		}
-
-		const result = model.tokenizer.batch_decode(sequences, {
-			skip_special_tokens: true,
-		})[0];
-		console.log("[Worker] Final streamed result:", result);
-		console.log("[Worker] Final sequence tokens:", sequences.tolist());
-		console.log(
-			"[Worker] Difference in length:",
-			sequences.tolist()[0].length - inputs.input_ids.tolist()[0].length
-		);
-
-		return result;
-	} catch (error) {
-		console.error("[Worker] Generation error:", error);
-		// Only reset KV cache on error if it was being used
-		if (model?.performance.supportsKVCache) {
-			past_key_values_cache = null;
-		}
+	} catch (error: any) {
+		sendResponse({
+			type: "error",
+			payload: {
+				message: error.message,
+				stack: error.stack,
+			},
+			id: "stream",
+		});
 		throw error;
 	}
 }
@@ -224,7 +160,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 				if (!payload.messages) {
 					throw new Error("Messages are required");
 				}
-				const result = await generateText(payload.messages, {
+				const { result } = await handleGenerateText(payload.messages, {
 					max_new_tokens: payload.max_new_tokens,
 					do_sample: payload.do_sample,
 					temperature: payload.temperature,
@@ -242,17 +178,20 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 				if (!model) {
 					throw new Error("Model not loaded");
 				}
-				const result = await streamText(payload.messages, {
+				if (!model.capabilities?.textGeneration) {
+					throw new Error("Model does not support text generation");
+				}
+				await handleStreamText(payload.messages, {
 					max_new_tokens: payload.max_new_tokens,
+					do_sample: payload.do_sample,
 					temperature: payload.temperature,
 					top_p: payload.top_p,
-					do_sample: payload.do_sample,
 					repetition_penalty: payload.repetition_penalty,
 					stop: payload.stop,
 					seed: payload.seed,
 				});
-				// Send final response after all tokens have been streamed
-				sendResponse({ type: "generated", payload: result, id });
+				// Send completion message
+				sendResponse({ type: "generated", payload: null, id });
 				break;
 			}
 

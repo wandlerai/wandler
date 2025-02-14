@@ -110,12 +110,12 @@ export abstract class BaseProvider {
 			textGeneration:
 				data.architectures?.some(
 					(a: string) =>
-						a.toLowerCase().includes("forcausallm") || // Text generation
-						a.toLowerCase().includes("forconditionalgeneration") ||
-						a.toLowerCase().includes("qwen") // Qwen models are for text generation
+						a.includes("ForCausalLM") || // Text generation
+						a.includes("ForConditionalGeneration") ||
+						a.includes("Qwen") // Qwen models are for text generation
 				) ||
 				data.text_config?.architectures?.some(
-					(a: string) => a.toLowerCase().includes("llm") || a.toLowerCase().includes("causallm")
+					(a: string) => a.includes("LLM") || a.includes("CausalLM")
 				) ||
 				// Many VL models can generate text
 				VL_MODEL_TYPES.some(type => data.model_type?.toLowerCase().includes(type)),

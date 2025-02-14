@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Quote of the Day - Wandler Demo</title>
+		<style>
+			body {
+				font-family:
+					system-ui,
+					-apple-system,
+					sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				line-height: 1.5;
+			}
+			.quote {
+				white-space: pre-wrap;
+				background: #f5f5f5;
+				padding: 2rem;
+				border-radius: 8px;
+				margin: 1rem 0;
+				font-size: 1.2rem;
+				font-style: italic;
+			}
+			.status {
+				color: #666;
+				font-style: italic;
+				margin-bottom: 1rem;
+				padding: 0.5rem;
+				background: #e8eaf6;
+				border-radius: 4px;
+				border-left: 4px solid #3f51b5;
+			}
+			button {
+				padding: 0.5rem 1rem;
+				font-size: 1rem;
+				background: #3f51b5;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+			}
+			button:disabled {
+				background: #ccc;
+				cursor: not-allowed;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Quote of the Day</h1>
+		<div id="status"></div>
+		<div id="quote" class="quote">Loading model...</div>
+		<button id="generateBtn" disabled>Generate New Quote</button>
+
+		<script type="module">
+			import { loadModel, generateText } from "../../packages/core/index.ts";
+
+			const quote = document.getElementById("quote");
+			const status = document.getElementById("status");
+			const generateBtn = document.getElementById("generateBtn");
+
+			let ai;
+
+			// Initialize on page load
+			try {
+				ai = await loadModel("onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX", {
+					onProgress: info => {
+						if (info.status === "progress") {
+							const mb = (info.loaded / (1024 * 1024)).toFixed(1);
+							const total = (info.total / (1024 * 1024)).toFixed(1);
+							const percent = ((info.loaded / info.total) * 100).toFixed(1);
+							quote.textContent = `${info.file}: ${mb}MB / ${total}MB (${percent}%)`;
+						}
+					},
+				});
+
+				// Verify model capabilities
+				if (!ai || !ai.capabilities?.textGeneration) {
+					throw new Error("Model does not support text generation");
+				}
+
+				status.textContent = `Running in ${ai.provider === "worker" ? "Worker" : "Main"} thread`;
+				generateBtn.disabled = false;
+
+				// Generate first quote
+				generateNewQuote();
+			} catch (error) {
+				quote.textContent = `Error loading model: ${error.message}`;
+				console.error(error);
+			}
+
+			async function generateNewQuote() {
+				try {
+					generateBtn.disabled = true;
+					quote.textContent = "Generating...";
+
+					const result = await generateText({
+						model: ai,
+						system: "You are a wise philosopher who shares profound and inspiring quotes.",
+						messages: [
+							{
+								role: "user",
+								content:
+									"Share a profound and inspiring quote about life, wisdom, or success. Keep it concise (1-2 sentences).",
+							},
+						],
+						temperature: 0.7,
+					});
+
+					quote.textContent = result;
+				} catch (error) {
+					quote.textContent = `Error generating quote: ${error.message}`;
+					console.error(error);
+				} finally {
+					generateBtn.disabled = false;
+				}
+			}
+
+			generateBtn.onclick = generateNewQuote;
+		</script>
+	</body>
+</html>
