@@ -453,3 +453,93 @@ functionality exists in exactly one place. When making changes:
 3. Use type inheritance to share common interfaces
 4. Keep configuration centralized
 5. Follow existing patterns for new features
+
+## Import Conventions
+
+1. **Always Use Absolute Imports**
+
+   ```typescript
+   // Good: Absolute imports with @wandler alias
+   import { generateWithTransformers } from "@wandler/utils/transformers";
+   import type { BaseModel } from "@wandler/types/model";
+   import { BaseProvider } from "@wandler/providers/base";
+
+   // Bad: Relative imports
+   import { generateWithTransformers } from "../../utils/transformers";
+   import type { BaseModel } from "../types/model";
+   ```
+
+2. **Import Organization**
+
+   ```typescript
+   // 1. External dependencies
+   import { TextStreamer } from "@huggingface/transformers";
+
+   // 2. Types (grouped)
+   import type { BaseModel } from "@wandler/types/model";
+   import type { Message } from "@wandler/types/message";
+   import type { GenerateConfig } from "@wandler/types/generation";
+
+   // 3. Internal modules
+   import { generateWithTransformers } from "@wandler/utils/transformers";
+   import { prepareMessages } from "@wandler/utils/message-utils";
+   ```
+
+3. **Path Mapping**
+
+   ```jsonc
+   // tsconfig.json
+   {
+   	"compilerOptions": {
+   		"paths": {
+   			"@wandler/*": ["./packages/core/*"],
+   		},
+   	},
+   }
+   ```
+
+4. **Exception for Tests**
+
+   ```typescript
+   // In test files, use full paths from root
+   import { createTestModel } from "../../test-utils";
+   import { generateText } from "../../../packages/core/utils/generate-text";
+   ```
+
+5. **Package Exports**
+
+   ```typescript
+   // In core/index.ts - Public API exports
+   export { generateText } from "@wandler/utils/generate-text";
+   export { streamText } from "@wandler/utils/stream-text";
+   export type { Message } from "@wandler/types/message";
+   ```
+
+6. **No Barrel Files**
+
+   - Don't use index.ts for re-exports within packages
+   - Keep imports explicit and traceable
+
+   ```typescript
+   // Bad: Using barrel files
+   import { something } from "@wandler/utils";
+
+   // Good: Direct imports
+   import { something } from "@wandler/utils/specific-file";
+   ```
+
+These import conventions ensure:
+
+- Consistent and maintainable imports across the codebase
+- Easy refactoring and module movement
+- Clear dependency tracking
+- Better IDE support and type resolution
+- No complex relative path calculations
+
+When working with imports:
+
+1. Always use `@wandler/*` for internal imports
+2. Group imports by external/types/internal
+3. Keep imports explicit and avoid barrels
+4. Use path mapping in tsconfig.json
+5. Make exceptions only for test files

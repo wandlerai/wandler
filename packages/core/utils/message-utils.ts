@@ -4,11 +4,11 @@
   message content types like images, files, and tool calls.
 */
 
-import type { Message } from "@wandler/types/message";
 import type {
-	StreamingGenerationOptions,
 	NonStreamingGenerationOptions,
+	StreamingGenerationOptions,
 } from "@wandler/types/generation";
+import type { Message } from "@wandler/types/message";
 
 type MessageOptions = StreamingGenerationOptions | NonStreamingGenerationOptions;
 

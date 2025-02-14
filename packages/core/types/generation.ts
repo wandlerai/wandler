@@ -1,5 +1,5 @@
-import type { BaseModel } from "./model";
 import type { Message } from "./message";
+import type { BaseModel } from "./model";
 import type { ToolSet } from "./stream";
 
 /**

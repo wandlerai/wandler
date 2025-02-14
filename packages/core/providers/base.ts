@@ -1,12 +1,13 @@
 import { AutoConfig } from "@huggingface/transformers";
+
 import type {
 	BaseModel,
 	ModelCapabilities,
-	ModelPerformance,
-	ModelOptions,
-	ProgressInfo,
-	ModelDtype,
 	ModelConfig,
+	ModelDtype,
+	ModelOptions,
+	ModelPerformance,
+	ProgressInfo,
 } from "@wandler/types/model";
 
 export abstract class BaseProvider {

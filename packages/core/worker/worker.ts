@@ -1,24 +1,9 @@
-import { TextStreamer } from "@huggingface/transformers";
-import type { WorkerMessage, WorkerResponse } from "./types";
-import type { BaseModel } from "../types/model";
-import type { ModelPerformance, ModelDevice } from "../types/model";
-import { getProvider } from "../providers/registry";
-import { generateWithTransformers, type GenerateConfig } from "../utils/transformers";
-import type { Message } from "../types/message";
-import { prepareMessages } from "../utils/message-utils";
-import type { BaseGenerationOptions } from "../types/generation";
+import { getProvider } from "@wandler/providers/registry";
+import type { BaseModel } from "@wandler/types/model";
+import type { WorkerMessage, WorkerResponse } from "@wandler/types/worker";
+import { generateWithTransformers } from "@wandler/utils/transformers";
 
 let model: BaseModel | null = null;
-
-// Keep track of past key values
-let past_key_values_cache: any = null;
-
-type WorkerOptions = {
-	generationConfig?: Record<string, any>;
-	performance?: ModelPerformance;
-	device?: ModelDevice;
-	[key: string]: any;
-};
 
 function sendResponse(response: WorkerResponse) {
 	self.postMessage(response);

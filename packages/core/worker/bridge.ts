@@ -1,4 +1,4 @@
-import type { WorkerMessage, WorkerResponse, WorkerInstance } from "./types";
+import type { WorkerInstance, WorkerMessage, WorkerResponse } from "@wandler/types/worker";
 
 export class WorkerBridge {
 	private messageHandlers: Map<string, (response: WorkerResponse) => void>;

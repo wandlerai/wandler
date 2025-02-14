@@ -1,5 +1,4 @@
 import type { BaseModel } from "./model";
-import type { Message } from "./message";
 
 export interface LanguageModel extends BaseModel {
 	name: string;

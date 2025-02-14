@@ -1,7 +1,5 @@
-import type { ModelOptions } from "@wandler/types/model";
 import type { Message } from "@wandler/types/message";
-import type { WorkerBridge } from "./bridge";
-import type { ModelPerformance } from "@wandler/types/model";
+import type { ModelOptions, ModelPerformance } from "@wandler/types/model";
 
 export type WorkerMessageType = "load" | "generate" | "stream" | "terminate" | "reset";
 export type WorkerResponseType = "loaded" | "generated" | "stream" | "error" | "progress" | "reset";
@@ -15,12 +13,13 @@ export interface WorkerMessage {
 			performance?: ModelPerformance;
 		};
 		messages?: Message[];
-		// Generation options
 		max_new_tokens?: number;
 		do_sample?: boolean;
 		temperature?: number;
 		top_p?: number;
 		repetition_penalty?: number;
+		stop?: string[];
+		seed?: number;
 	};
 	id: string;
 }
@@ -31,13 +30,13 @@ export interface WorkerResponse {
 	id: string;
 }
 
-export interface WorkerError extends Error {
-	code?: string;
+export interface WorkerInstance {
+	bridge: WorkerBridge;
+	worker: Worker;
 }
 
-export interface WorkerInstance {
-	worker: Worker;
-	bridge: WorkerBridge;
+export interface WorkerBridge {
+	sendMessage(message: WorkerMessage): Promise<WorkerResponse>;
+	setMessageHandler(handler: (event: MessageEvent) => void): void;
 	terminate(): void;
-	isTerminated: boolean;
 }

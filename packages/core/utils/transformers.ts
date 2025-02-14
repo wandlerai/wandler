@@ -6,8 +6,9 @@
 */
 
 import { TextStreamer } from "@huggingface/transformers";
-import type { BaseModel } from "@wandler/types/model";
+
 import type { Message } from "@wandler/types/message";
+import type { BaseModel } from "@wandler/types/model";
 
 // Keep track of past key values for models that support KV cache
 let past_key_values_cache: any = null;

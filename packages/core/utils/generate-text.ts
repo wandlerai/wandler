@@ -6,13 +6,13 @@
   @packageDocumentation
 */
 
-import type { BaseModel } from "@wandler/types/model";
-import type { Message } from "@wandler/types/message";
-import type { WorkerMessage } from "@wandler/worker/types";
 import type { NonStreamingGenerationOptions } from "@wandler/types/generation";
-import { generateWithTransformers, type GenerateConfig } from "./transformers";
-import { prepareMessages, validateMessages } from "./message-utils";
-import { prepareGenerationConfig, validateGenerationConfig } from "./generation-utils";
+import type { Message } from "@wandler/types/message";
+import type { BaseModel } from "@wandler/types/model";
+import type { WorkerMessage } from "@wandler/types/worker";
+import { prepareGenerationConfig, validateGenerationConfig } from "@wandler/utils/generation-utils";
+import { prepareMessages, validateMessages } from "@wandler/utils/message-utils";
+import { type GenerateConfig, generateWithTransformers } from "@wandler/utils/transformers";
 
 // --- Public Types ---
 
@@ -41,9 +41,6 @@ import { prepareGenerationConfig, validateGenerationConfig } from "./generation-
  * @see {@link streamText} for streaming generation
  * @see {@link NonStreamingGenerationOptions} for detailed options documentation
  */
-
-// Keep track of past key values for models that support KV cache
-let past_key_values_cache: any = null;
 
 // --- Public API ---
 

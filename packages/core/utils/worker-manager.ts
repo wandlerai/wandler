@@ -1,6 +1,6 @@
-import { WorkerBridge } from "@wandler/worker/bridge";
-import type { WorkerInstance } from "@wandler/worker/types";
 import type { ModelOptions } from "@wandler/types/model";
+import type { WorkerInstance } from "@wandler/types/worker";
+import { WorkerBridge } from "@wandler/worker/bridge";
 
 const WORKER_TIMEOUT = 30000; // 30 seconds
 

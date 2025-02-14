@@ -16,10 +16,20 @@
 		"version": "changeset version",
 		"release": "npm run build && changeset publish",
 		"format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
-		"preinstall": "npx only-allow npm"
+		"preinstall": "npx only-allow npm",
+		"lint": "eslint \"**/*.{ts,tsx}\"",
+		"lint:fix": "eslint \"**/*.{ts,tsx}\" --fix"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.1",
+		"@typescript-eslint/eslint-plugin": "^8.24.0",
+		"@typescript-eslint/parser": "^8.24.0",
+		"eslint": "^9.20.1",
+		"eslint-config-prettier": "^10.0.1",
+		"eslint-plugin-import": "^2.31.0",
+		"eslint-plugin-prettier": "^5.2.3",
+		"eslint-plugin-simple-import-sort": "^12.1.1",
+		"eslint-plugin-unused-imports": "^4.1.4",
 		"prettier": "^3.2.4"
 	}
 }

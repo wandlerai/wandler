@@ -1,6 +1,6 @@
-import { TransformersProvider } from "./transformers";
-import { DeepseekProvider } from "./deepseek";
-import type { BaseProvider } from "./base";
+import { BaseProvider } from "@wandler/providers/base";
+import { DeepseekProvider } from "@wandler/providers/deepseek";
+import { TransformersProvider } from "@wandler/providers/transformers";
 
 export interface ProviderEntry {
 	pattern: RegExp;

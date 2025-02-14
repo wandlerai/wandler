@@ -1,5 +1,5 @@
-import { loadModel } from "../../packages/core/utils/load";
 import type { ModelOptions } from "../../packages/core/types/model";
+import { loadModel } from "../../packages/core/utils/load";
 
 // Mock transformers
 jest.mock("@huggingface/transformers", () => ({

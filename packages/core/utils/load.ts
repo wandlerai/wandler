@@ -1,7 +1,7 @@
-import { WorkerManager } from "@wandler/utils/worker-manager";
-import type { BaseModel, ModelOptions } from "@wandler/types/model";
-import type { WorkerMessage } from "@wandler/worker/types";
 import { getProvider } from "@wandler/providers/registry";
+import type { BaseModel, ModelOptions } from "@wandler/types/model";
+import type { WorkerMessage } from "@wandler/types/worker";
+import { WorkerManager } from "@wandler/utils/worker-manager";
 
 export async function loadModel(modelPath: string, options: ModelOptions = {}): Promise<BaseModel> {
 	const workerManager = WorkerManager.getInstance();

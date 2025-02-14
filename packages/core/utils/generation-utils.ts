@@ -4,12 +4,11 @@
   and non-streaming generation.
 */
 
-import type { BaseModel } from "@wandler/types/model";
-import type { GenerateConfig } from "./transformers";
 import type {
-	StreamingGenerationOptions,
 	NonStreamingGenerationOptions,
+	StreamingGenerationOptions,
 } from "@wandler/types/generation";
+import type { GenerateConfig } from "@wandler/utils/transformers";
 
 type GenerationOptions = StreamingGenerationOptions | NonStreamingGenerationOptions;
 

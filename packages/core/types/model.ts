@@ -1,3 +1,6 @@
+// Import this to avoid circular dependency
+import type { GenerationConfig } from "./generation";
+
 export type ModelDtype =
 	| "q4f16"
 	| "auto"
@@ -83,6 +86,3 @@ export interface ModelOptions {
 		timeout?: number;
 	};
 }
-
-// Import this to avoid circular dependency
-import type { GenerationConfig } from "./generation";

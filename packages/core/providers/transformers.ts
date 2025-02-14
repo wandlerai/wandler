@@ -1,4 +1,5 @@
-import { AutoTokenizer, AutoModelForCausalLM } from "@huggingface/transformers";
+import { AutoModelForCausalLM, AutoTokenizer } from "@huggingface/transformers";
+
 import { BaseProvider } from "@wandler/providers/base";
 import type { BaseModel, ModelConfig, ModelOptions } from "@wandler/types/model";
 
