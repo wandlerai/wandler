@@ -55,7 +55,7 @@ interface StreamResult<T> {
 ## 2. File Structure
 
 ```
-packages/core/
+packages/worker/
 ├── worker/
 │   ├── worker.ts             # Main worker implementation
 │   ├── bridge.ts             # Communication layer

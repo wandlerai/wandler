@@ -10,8 +10,8 @@
 		"esModuleInterop": true,
 		"baseUrl": ".",
 		"paths": {
-			"@wandler": ["packages/core/index.ts"],
-			"@wandler/*": ["packages/core/*"]
+			"@wandler": ["packages/wandler/index.ts"],
+			"@wandler/*": ["packages/wandler/*"]
 		}
 	},
 	"include": ["packages/**/*", "tests/**/*"],

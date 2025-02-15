@@ -15,8 +15,8 @@ module.exports = {
 	extensionsToTreatAsEsm: [".ts"],
 	moduleNameMapper: {
 		"^(\\.{1,2}/.*)\\.js$": "$1",
-		"^@wandler$": "<rootDir>/packages/core/index.ts",
-		"^@wandler/(.*)$": "<rootDir>/packages/core/$1",
+		"^@wandler$": "<rootDir>/packages/wandler/index.ts",
+		"^@wandler/(.*)$": "<rootDir>/packages/wandler/$1",
 	},
 	roots: ["<rootDir>"],
 	setupFilesAfterEnv: ["<rootDir>/tests/setup.ts"],

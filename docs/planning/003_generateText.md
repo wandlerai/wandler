@@ -33,7 +33,7 @@ interactions.
 ### 1. Core Transformer.js Layer
 
 ```typescript
-// packages/core/utils/transformers.ts
+// packages/wandler/utils/transformers.ts
 
 interface GenerateConfig {
 	inputs?: any; // If already tokenized
@@ -88,7 +88,7 @@ export async function generateWithTransformers(
 ### 2. User-Facing API Layer
 
 ```typescript
-// packages/core/utils/generate-text.ts
+// packages/wandler/utils/generate-text.ts
 
 export async function generateText(options: GenerateTextOptions): Promise<string> {
 	// 1. Validation and setup
@@ -109,7 +109,7 @@ export async function generateText(options: GenerateTextOptions): Promise<string
 ### 3. Worker Communication Layer
 
 ```typescript
-// packages/core/worker/worker.ts
+// packages/wandler/worker/worker.ts
 
 async function handleGenerate(payload: GeneratePayload): Promise<string> {
 	// 1. Prepare config from payload

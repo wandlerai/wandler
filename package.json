@@ -5,7 +5,7 @@
 		"packages/*"
 	],
 	"scripts": {
-		"dev": "cd packages/core && npm run dev",
+		"dev": "cd packages/wandler && npm run dev",
 		"build": "npm run build --workspaces --if-present",
 		"test": "npm run test --workspaces --if-present",
 		"test:watch": "jest --watch",

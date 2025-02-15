@@ -1,5 +1,5 @@
-import type { ModelOptions } from "../../packages/core/types/model";
-import { loadModel } from "../../packages/core/utils/load";
+import type { ModelOptions } from "../../packages/wandler/types/model";
+import { loadModel } from "../../packages/wandler/utils/load";
 
 // Mock transformers
 jest.mock("@huggingface/transformers", () => ({
@@ -18,7 +18,7 @@ jest.mock("@huggingface/transformers", () => ({
 }));
 
 // Mock internal modules
-jest.mock("../../packages/core/utils/worker-manager", () => {
+jest.mock("../../packages/wandler/utils/worker-manager", () => {
 	const mockBridge = {
 		setMessageHandler: jest.fn(),
 		postMessage: jest.fn(),
@@ -37,7 +37,7 @@ jest.mock("../../packages/core/utils/worker-manager", () => {
 	};
 });
 
-jest.mock("../../packages/core/providers/registry", () => ({
+jest.mock("../../packages/wandler/providers/registry", () => ({
 	getProvider: jest.fn().mockReturnValue({
 		getGenerationConfig: jest.fn().mockReturnValue({
 			max_new_tokens: 1024,

@@ -9,8 +9,9 @@ Tailwind.
 - Use descriptive variable names.
 - Never use relative imports. Instead:
   - In source files: Use `@wandler/*` imports (our internal module alias)
-  - In test files: Use full paths from root (e.g., `../../packages/core/utils/something`)
-- Note that while we use `@wandler/*` internally, our core package is published as `wandler` on npm
+  - In test files: Use full paths from root (e.g., `../../packages/wandler/utils/something`)
+- Note that while we use `@wandler/*` internally, our wandler package is published as `wandler` on
+  npm
 - Structure files with exported components, subcomponents, helpers, and types.
 - Place components in the components directory with kebab-case names.
 - Avoid barrel/index pattern and keep component files flat; co-locate component-specific types and

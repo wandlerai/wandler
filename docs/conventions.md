@@ -10,7 +10,7 @@
 
 2. **Module Organization**
    ```
-   packages/core/
+   packages/wandler/
    ├── types/         # Core type definitions
    ├── utils/         # Shared utilities and core functions
    ├── worker/        # Worker-related code
@@ -492,7 +492,7 @@ functionality exists in exactly one place. When making changes:
    {
    	"compilerOptions": {
    		"paths": {
-   			"@wandler/*": ["./packages/core/*"],
+   			"@wandler/*": ["./packages/wandler/*"],
    		},
    	},
    }
@@ -503,13 +503,13 @@ functionality exists in exactly one place. When making changes:
    ```typescript
    // In test files, use full paths from root
    import { createTestModel } from "../../test-utils";
-   import { generateText } from "../../../packages/core/utils/generate-text";
+   import { generateText } from "../../../packages/wandler/utils/generate-text";
    ```
 
 5. **Package Exports**
 
    ```typescript
-   // In core/index.ts - Public API exports
+   // In wandler/index.ts - Public API exports
    export { generateText } from "@wandler/utils/generate-text";
    export { streamText } from "@wandler/utils/stream-text";
    export type { Message } from "@wandler/types/message";

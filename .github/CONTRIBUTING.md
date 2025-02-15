@@ -28,7 +28,7 @@ Example test:
 
 ```typescript
 // tests/unit/something.test.ts
-import { Something } from "../../packages/core/utils/something";
+import { Something } from "../../packages/wandler/utils/something";
 
 // Mock external dependencies
 jest.mock("@huggingface/transformers", () => ({
@@ -118,7 +118,7 @@ The workflow files are:
 
 ```markdown
 ---
-"@wandler/core": patch
+"wandler": patch
 "@wandler/react": patch
 ---
 
@@ -147,7 +147,7 @@ If you have any questions about the release process, please open an issue or ask
 
 For source files:
 
-- Use `@wandler/*` imports in source files (NOT `@wandler/core/*`)
+- Use `@wandler/*` imports in source files (NOT `@wandler/wandler/*`)
 - Never use relative imports (`../`, `./`) in source files
 - Never use `index` files for exports/imports
 - Always import from the specific file
@@ -167,14 +167,14 @@ import type { BaseModel } from "../types/model";
 For test files:
 
 - Use relative imports in test files
-- Import from the full path (e.g., `../../packages/core/utils/something`)
+- Import from the full path (e.g., `../../packages/wandler/utils/something`)
 
 Example for test files:
 
 ```ts
 // Good
-import { WorkerManager } from "../../packages/core/utils/worker-manager";
-import type { BaseModel } from "../../packages/core/types/model";
+import { WorkerManager } from "../../packages/wandler/utils/worker-manager";
+import type { BaseModel } from "../../packages/wandler/types/model";
 
 // Bad
 import { WorkerManager } from "@wandler/utils/worker-manager";
