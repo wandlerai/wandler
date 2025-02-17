@@ -1,0 +1,164 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Raw Transformers.js Test</title>
+		<style>
+			body {
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				font-family: system-ui, sans-serif;
+			}
+			.status {
+				color: #666;
+				font-style: italic;
+				margin-bottom: 1rem;
+				padding: 0.5rem;
+				background: #e8eaf6;
+				border-radius: 4px;
+				border-left: 4px solid #3f51b5;
+			}
+			button {
+				padding: 0.5rem 1rem;
+				border-radius: 4px;
+				border: none;
+				background: #3f51b5;
+				color: white;
+				cursor: pointer;
+				margin-right: 1rem;
+			}
+			button:disabled {
+				background: #ccc;
+				cursor: not-allowed;
+			}
+			pre {
+				background: #1e1e1e;
+				color: #d4d4d4;
+				padding: 1rem;
+				border-radius: 4px;
+				overflow: auto;
+				font-family: "Consolas", "Monaco", monospace;
+				margin: 0.5rem 0;
+			}
+			.error {
+				color: #d32f2f;
+				background: #ffebee;
+				padding: 1rem;
+				border-radius: 4px;
+				margin: 1rem 0;
+			}
+			.info-section {
+				margin: 1rem 0;
+				padding: 1rem;
+				background: #1e1e1e;
+				border-radius: 4px;
+				border-left: 4px solid #3f51b5;
+			}
+			.info-section h4 {
+				color: #3f51b5;
+				margin-bottom: 0.5rem;
+				font-weight: 600;
+			}
+			.info-section pre {
+				background: #2d2d2d;
+				margin: 0.5rem 0;
+				padding: 0.5rem;
+				border-radius: 2px;
+				font-size: 0.9rem;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Raw Transformers.js Test</h1>
+
+		<div class="model-info">
+			<pre>onnx-community/Qwen2.5-Coder-0.5B-ONN</pre>
+		</div>
+
+		<div class="controls">
+			<button id="load-tokenizer">Load Tokenizer</button>
+			<button id="load-model">Load Model</button>
+			<div id="status" class="status">Ready to test</div>
+		</div>
+
+		<div id="tokenizer-info"></div>
+		<div id="model-info"></div>
+
+		<script type="module">
+			import { AutoModel, AutoTokenizer } from "@huggingface/transformers";
+
+			const MODEL_PATH = "onnx-community/Qwen2.5-Coder-0.5B-ONNX";
+			const tokenizerBtn = document.getElementById("load-tokenizer");
+			const modelBtn = document.getElementById("load-model");
+			const status = document.getElementById("status");
+			const tokenizerInfo = document.getElementById("tokenizer-info");
+			const modelInfo = document.getElementById("model-info");
+
+			let tokenizer = null;
+			let model = null;
+
+			async function loadTokenizer() {
+				tokenizerBtn.disabled = true;
+				try {
+					status.textContent = "Loading tokenizer...";
+					tokenizer = await AutoTokenizer.from_pretrained(MODEL_PATH, {
+						progress_callback: info => {
+							status.textContent = `Tokenizer progress: ${JSON.stringify(info)}`;
+						},
+					});
+
+					tokenizerInfo.innerHTML = `
+						<h3>Tokenizer loaded successfully!</h3>
+					`;
+				} catch (error) {
+					const errorDiv = document.createElement("div");
+					errorDiv.className = "error";
+					errorDiv.textContent = `Tokenizer error: ${error.message}`;
+					tokenizerInfo.appendChild(errorDiv);
+					console.error("Tokenizer error:", error);
+				} finally {
+					tokenizerBtn.disabled = false;
+				}
+			}
+
+			async function loadModel() {
+				modelBtn.disabled = true;
+				try {
+					status.textContent = "Loading model...";
+					model = await AutoModel.from_pretrained(MODEL_PATH, {
+						progress_callback: info => {
+							status.textContent = `Model progress: ${JSON.stringify(info)}`;
+						},
+						device: "auto",
+						dtype: "q4f16",
+					});
+
+					// Manual breakpoint to inspect the model
+					debugger;
+
+					modelInfo.innerHTML = `
+						<h3>Model loaded successfully!</h3>
+						<div class="info-section">
+							<h4>Raw Model Object:</h4>
+							<pre>${JSON.stringify(model, null, 2)}</pre>
+						</div>
+					`;
+
+					// Also log to console for inspection
+					console.log("Full model object:", JSON.stringify(model, null, 2));
+				} catch (error) {
+					const errorDiv = document.createElement("div");
+					errorDiv.className = "error";
+					errorDiv.textContent = `Model error: ${error.message}`;
+					modelInfo.appendChild(errorDiv);
+					console.error("Model error:", error);
+				} finally {
+					modelBtn.disabled = false;
+				}
+			}
+
+			tokenizerBtn.addEventListener("click", loadTokenizer);
+			modelBtn.addEventListener("click", loadModel);
+		</script>
+	</body>
+</html>

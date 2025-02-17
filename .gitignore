@@ -42,3 +42,7 @@ next-env.d.ts
 .vscode
 *.swp
 *.swo
+
+# playwright
+playwright-report
+test-results

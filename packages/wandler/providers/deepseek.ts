@@ -7,7 +7,7 @@ export class DeepseekProvider extends BaseProvider {
 	// Base configuration for all DeepSeek models
 	protected baseConfig: ModelConfig = {
 		dtype: "auto",
-		device: "webgpu",
+		device: "auto",
 		generationConfig: {
 			max_new_tokens: 1024,
 			do_sample: false,

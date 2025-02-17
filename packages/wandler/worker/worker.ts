@@ -48,7 +48,19 @@ async function loadModel(modelPath: string, options: any = {}) {
 		};
 
 		// Use the provider to load the model
-		model = await provider.loadModel(modelPath, wrappedOptions);
+		console.log("[Worker] Loading model with provider:", provider.constructor.name);
+		try {
+			model = await provider.loadModel(modelPath, wrappedOptions);
+		} catch (error: any) {
+			console.error("[Worker] Model loading failed:", error);
+			// Check if the error is a number (invalid model response)
+			if (typeof error === "number") {
+				throw new Error(
+					`Failed to load model: there was an error in transformers.js, but we don't know exactly what it means: ${error}`
+				);
+			}
+			throw new Error(`Failed to load model: ${error?.message || String(error)}`);
+		}
 
 		console.log("[Worker] Model loaded with provider:", provider.constructor.name);
 		console.log("[Worker] Model capabilities:", model.capabilities);
@@ -65,8 +77,8 @@ async function loadModel(modelPath: string, options: any = {}) {
 		// Return a serializable version of the model
 		return createSerializableModel(model);
 	} catch (error: any) {
-		console.error("Error loading model:", error);
-		throw new Error(`Failed to load model: ${error.message}`);
+		console.error("[Worker] Error in model loading pipeline:", error);
+		throw error; // Re-throw to maintain the error chain
 	}
 }
 

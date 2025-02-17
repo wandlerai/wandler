@@ -1,0 +1,171 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Wandler Load Model Test</title>
+		<style>
+			body {
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				font-family: system-ui, sans-serif;
+			}
+			.status {
+				color: #666;
+				font-style: italic;
+				margin-bottom: 1rem;
+				padding: 0.5rem;
+				background: #e8eaf6;
+				border-radius: 4px;
+				border-left: 4px solid #3f51b5;
+			}
+			.controls {
+				margin: 2rem 0;
+				display: flex;
+				gap: 1rem;
+				align-items: center;
+			}
+			button {
+				padding: 0.5rem 1rem;
+				border-radius: 4px;
+				border: none;
+				background: #3f51b5;
+				color: white;
+				cursor: pointer;
+			}
+			button:disabled {
+				background: #ccc;
+				cursor: not-allowed;
+			}
+			.model-info {
+				margin-top: 2rem;
+			}
+			.model-display {
+				margin-bottom: 2rem;
+			}
+			.model-tags {
+				display: flex;
+				gap: 0.5rem;
+				margin-top: 0.5rem;
+			}
+			.tag {
+				padding: 0.25rem 0.75rem;
+				border-radius: 1rem;
+				font-size: 0.875rem;
+				font-weight: 500;
+			}
+			.tag-model {
+				background: #39ff14;
+				color: black;
+			}
+			.tag-type {
+				background: #ff1493;
+				color: white;
+			}
+			pre {
+				background: #1e1e1e;
+				color: #d4d4d4;
+				padding: 1rem;
+				border-radius: 4px;
+				overflow: auto;
+				font-family: "Consolas", "Monaco", monospace;
+				margin: 0;
+			}
+			.error {
+				color: #d32f2f;
+				background: #ffebee;
+				padding: 1rem;
+				border-radius: 4px;
+				margin: 1rem 0;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Wandler Load Model Test</h1>
+
+		<div class="model-display">
+			<pre>onnx-community/Qwen2.5-Coder-0.5B-Instruct</pre>
+			<div class="model-tags">
+				<span class="tag tag-model">model</span>
+				<span class="tag tag-type">text</span>
+			</div>
+		</div>
+
+		<div class="controls">
+			<button id="load-btn">Load Model</button>
+			<span id="status">Ready to load model</span>
+		</div>
+
+		<div id="model-info" class="model-info" style="display: none"></div>
+
+		<script type="module">
+			import { loadModel, generateText, streamText } from "../../packages/wandler/index.ts";
+
+			const loadBtn = document.getElementById("load-btn");
+			const status = document.getElementById("status");
+			const modelInfo = document.getElementById("model-info");
+
+			const testLogs = [];
+			let model = null;
+
+			function logTestEvent(event) {
+				testLogs.push({
+					timestamp: Date.now(),
+					...event,
+				});
+			}
+
+			async function handleLoadModel() {
+				try {
+					loadBtn.disabled = true;
+					status.textContent = "Loading model...";
+
+					model = await loadModel("onnx-community/Qwen2.5-Coder-0.5B-Instruct", {
+						onProgress: info => {
+							if (info.status === "progress") {
+								const mb = (info.loaded / (1024 * 1024)).toFixed(1);
+								const total = (info.total / (1024 * 1024)).toFixed(1);
+								const percent = ((info.loaded / info.total) * 100).toFixed(1);
+								status.textContent = `${info.file}: ${mb}MB / ${total}MB (${percent}%)`;
+							}
+							logTestEvent({ type: "progress", info });
+						},
+						device: "auto",
+					});
+
+					logTestEvent({ type: "loaded", capabilities: model.capabilities });
+
+					// Display model capabilities
+					modelInfo.style.display = "block";
+					modelInfo.innerHTML = `
+						<h2>Capabilities</h2>
+						<pre>${JSON.stringify(model.capabilities, null, 2)}</pre>
+					`;
+					status.textContent = "Model loaded successfully!";
+				} catch (error) {
+					console.log(error);
+					const errorDiv = document.createElement("div");
+					errorDiv.className = "error";
+					errorDiv.textContent = `Error loading model: ${error.message}`;
+					modelInfo.before(errorDiv);
+
+					logTestEvent({ type: "error", error: error.message });
+					status.textContent = "Failed to load model";
+				} finally {
+					loadBtn.disabled = false;
+				}
+			}
+
+			// Wire up event handlers
+			loadBtn.addEventListener("click", handleLoadModel);
+
+			// Make test functions available globally for Playwright
+			window.testAPI = {
+				loadModel,
+				generateText,
+				streamText,
+			};
+			window.testLogs = testLogs;
+			window.logTestEvent = logTestEvent;
+		</script>
+	</body>
+</html>

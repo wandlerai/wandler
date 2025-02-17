@@ -1,10 +1,7 @@
-import { AutoConfig } from "@huggingface/transformers";
-
 import type {
 	BaseModel,
 	ModelCapabilities,
 	ModelConfig,
-	ModelDtype,
 	ModelOptions,
 	ModelPerformance,
 	ProgressInfo,
@@ -47,30 +44,18 @@ export abstract class BaseProvider {
 	}
 
 	protected handleProgress(
-		type: string,
-		progressInfo: ProgressInfo,
+		component: string,
+		info: any,
 		callback?: (info: ProgressInfo) => void
-	) {
-		// Initialize progress tracking for this type if not exists
-		if (!this.progress[type]) {
-			this.progress[type] = {
-				loaded: 0,
-				total: 0,
-			};
-		}
-
-		// Only update if we have more progress
-		if (
-			progressInfo.status === "progress" &&
-			progressInfo.loaded !== undefined &&
-			progressInfo.loaded > this.progress[type].loaded
-		) {
-			this.progress[type].loaded = progressInfo.loaded;
-		}
-
-		// Call the progress callback if provided
-		if (callback) {
-			callback(progressInfo);
+	): void {
+		if (callback && info.status === "progress") {
+			callback({
+				status: "progress",
+				component,
+				file: info.file,
+				loaded: info.loaded,
+				total: info.total,
+			});
 		}
 	}
 
@@ -79,63 +64,45 @@ export abstract class BaseProvider {
 		performance: ModelPerformance;
 		config: Record<string, any>;
 	}> {
-		const config = await AutoConfig.from_pretrained(modelPath);
-		const configData = config as any;
-
-		// Extract relevant config data
-		const data = {
-			architectures: configData.architectures,
-			model_type: configData.model_type,
-			transformers_js: configData.transformers_js_config,
-			dtype: configData.torch_dtype,
-			use_cache: configData.use_cache,
-			num_attention_heads: configData.num_attention_heads,
-			num_key_value_heads: configData.num_key_value_heads,
-			hidden_size: configData.hidden_size,
-			vision_config: configData.vision_config,
-			text_config: configData.text_config,
+		return {
+			capabilities: {
+				textGeneration: true,
+				textClassification: false,
+				imageGeneration: false,
+				audioProcessing: false,
+				vision: false,
+			},
+			performance: {
+				supportsKVCache: true,
+				groupedQueryAttention: false,
+				recommendedDtype: "auto",
+			},
+			config: {},
 		};
+	}
 
-		// Known vision-language model types
-		const VL_MODEL_TYPES = [
-			"idefics", // HuggingFace's IDEFICS
-			"git", // Microsoft's Generative Image-to-Text
-			"blip", // Salesforce's BLIP
-			"vlm", // Generic Vision-Language Models
-			"flava", // Facebook's FLAVA
-			"instructblip", // Salesforce's InstructBLIP
-			"kosmos", // Microsoft's Kosmos
-		];
+	public async loadTokenizer(modelPath: string, options: ModelOptions = {}): Promise<any> {
+		throw new Error("loadTokenizer not implemented");
+	}
 
-		const capabilities = {
-			textGeneration:
-				data.architectures?.some(
-					(a: string) =>
-						a.includes("ForCausalLM") || // Text generation
-						a.includes("ForConditionalGeneration") ||
-						a.includes("Qwen") // Qwen models are for text generation
-				) ||
-				data.text_config?.architectures?.some(
-					(a: string) => a.includes("LLM") || a.includes("CausalLM")
-				) ||
-				// Many VL models can generate text
-				VL_MODEL_TYPES.some(type => data.model_type?.toLowerCase().includes(type)),
-			textClassification: false,
-			imageGeneration: false,
-			audioProcessing: false,
-			vision: VL_MODEL_TYPES.some(type => data.model_type?.toLowerCase().includes(type)),
-		};
+	public async loadInstance(modelPath: string, options: ModelOptions = {}): Promise<any> {
+		throw new Error("loadInstance not implemented");
+	}
 
-		const performance = {
-			supportsKVCache: true,
-			groupedQueryAttention: false,
-			recommendedDtype: "auto" as ModelDtype,
-		};
+	public async loadModel(modelPath: string, options: ModelOptions = {}): Promise<BaseModel> {
+		const tokenizer = await this.loadTokenizer(modelPath, options);
+		const instance = await this.loadInstance(modelPath, options);
+		const { capabilities, performance, config } = await this.detectCapabilities(modelPath);
 
 		return {
+			id: modelPath,
+			provider: this.constructor.name.toLowerCase().replace("provider", ""),
+			tokenizer,
+			instance,
 			capabilities,
 			performance,
-			config: data,
+			config,
+			generationConfig: this.getConfigForModel(modelPath).generationConfig,
 		};
 	}
 }
