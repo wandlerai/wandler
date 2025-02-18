@@ -1,72 +1,36 @@
-# Wandler
+# wandler
 
 <p align="center">
-  <img src="assets/logo/wandler_logo_v4.svg" alt="Wandler Logo" width="900">
+  <img src="assets/logo/wandler_logo_v5.svg" alt="wandler logo" width="900">
 </p>
 
-**Wandler empowers web developers to integrate powerful language AI into browsers with simplicity
-and performance.**  
-We provide a minimalist, privacy-focused abstraction layer over cutting-edge technologies
-(Transformers.js + WebGPU) to enable:
+<h1 align="center" style="font-size: 5em;">run ai in the browser</h1>
 
-## Key Features
+<div align="center">
+  <p>
+    <strong>inspired by the ▲ AI SDK & built on top of 🤗 Transformers.js</strong>
+  </p>
+</div>
 
-1. **Zero-Config Intelligence**  
-   Run state-of-the-art language models with one line of code
+<p align="center">
+  <img src="assets/hero/20250202_wandler_head_v2.jpg" alt="wandler head" width="600">
+</p>
 
-   ```typescript
-   const ai = new Wandler();
-   ai.text("Hello world");
-   ```
+<br/>
 
-2. **Browser-Native Performance**  
-   Automatic WebGPU acceleration and KV caching for near-native speed
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <strong>🚨 EXPERIMENTAL 🚨</strong><br/>
+        this is an alpha release, expect everything to be totally broken
+      </td>
+    </tr>
+  </table>
+</div>
 
-3. **Privacy by Default**  
-   Client-side execution ensures data never leaves the user's device
+<br/>
 
-## Installation
-
-```bash
-npm install wandler
-```
-
-## Quick Start
-
-```typescript
-import { Wandler } from "wandler";
-
-// Initialize with default settings
-const ai = new Wandler("meta-llama/Llama-2-7b-chat-hf");
-
-// Basic text generation
-const response = await ai.text([{ role: "user", content: "Hello, how are you?" }]);
-
-// Streaming with progress updates
-const streamingResponse = await ai.text([{ role: "user", content: "Tell me a story" }], {
-	stream: true,
-	onToken: token => console.log(token),
-});
-```
-
-## Development
-
-```bash
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Run tests
-npm test
-```
-
-## Contributing
-
-Contributions are welcome! Please read our [contributing guidelines](.github/CONTRIBUTING.md) for
-details.
-
-## License
-
-This project is licensed under [MIT](LICENSE).
+<p align="center">
+  <strong>docs are coming soon</strong>
+</p>

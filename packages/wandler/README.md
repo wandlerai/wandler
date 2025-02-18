@@ -1,74 +1,36 @@
 # wandler
 
 <p align="center">
-  <img src="../../assets/logo/wandler_logo_v4.svg" alt="Wandler Logo">
+  <img src="../../assets/logo/wandler_logo_v5.svg" alt="wandler logo" width="900">
 </p>
 
-<p align="center">
-  <h3 align="center"><strong>Democratize AI with the browser</strong></h3>
-</p>
-
-<p align="center">
-  Wandler makes it ridiculously easy to run AI directly in your browser.
-</p>
-
-## Quick Start
-
-```bash
-npm install wandler
-```
-
-## Usage
-
-```typescript
-import { loadModel, streamText } from "wandler";
-
-// Load any model
-const model = await loadModel("onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX", {
-	onProgress: info => console.log(`${info.file}: ${info.loaded}/${info.total} bytes`),
-});
-
-// Stream text
-const result = await streamText({
-	model,
-	messages: [{ role: "user", content: "What is the meaning of life?" }],
-});
-
-for await (const token of result) {
-	console.log(token);
-}
-```
-
-## Features
-
-- 🎮 **Run AI Models Locally** - No server, no API keys, complete privacy
-- ⚡ **WebGPU Acceleration** - Blazing fast inference using your GPU
-- 🔌 **battle tested foundation** - Runs on top of
-  [Transformers.js](https://github.com/huggingface/transformers.js) (and more to come)
-- 🎯 **Smart Model Detection** - Automatically detects model capabilities
-- 🧩 **Provider System** - Extensible architecture for different model types
-
-## Coming Soon
-
-- 🎨 **Framework Support**
-
-  - `@wandler/react` - React components and hooks
-  - `@wandler/vue` - Vue components and composables
-
-## Documentation
-
-- [Examples](examples/)
-
-## Contributing
-
-We love contributions! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
-
-## 📄 License
-
-MIT © [Tim Pietrusky](https://github.com/timpietrusky)
-
----
+<h1 align="center" style="font-size: 5em;">run ai in the browser</h1>
 
 <div align="center">
-  <strong>let's democratize AI</strong>
+  <p>
+    <strong>inspired by the ▲ AI SDK & built on top of 🤗 Transformers.js</strong>
+  </p>
 </div>
+
+<p align="center">
+  <img src="../../assets/hero/20250202_wandler_head_v2.jpg" alt="wandler head" width="600">
+</p>
+
+<br/>
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <strong>🚨 EXPERIMENTAL 🚨</strong><br/>
+        this is an alpha release, expect everything to be totally broken
+      </td>
+    </tr>
+  </table>
+</div>
+
+<br/>
+
+<p align="center">
+  <strong>docs are coming soon</strong>
+</p>
