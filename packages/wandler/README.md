@@ -4,7 +4,7 @@
   <img src="../../assets/logo/wandler_logo_v5.svg" alt="wandler logo" width="900">
 </p>
 
-<h1 align="center" style="font-size: 5em;">run ai in the browser</h1>
+<h1 align="center" style="font-size: 5em;">run ai in your browser</h1>
 
 <div align="center">
   <p>
