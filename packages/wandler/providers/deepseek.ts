@@ -1,13 +1,11 @@
-import { AutoModelForCausalLM, AutoTokenizer } from "@huggingface/transformers";
-
 import { BaseProvider } from "@wandler/providers/base";
-import type { BaseModel, ModelConfig, ModelOptions } from "@wandler/types/model";
+import type { ModelConfig } from "@wandler/types/model";
 
 export class DeepseekProvider extends BaseProvider {
 	// Base configuration for all DeepSeek models
 	protected baseConfig: ModelConfig = {
-		dtype: "auto",
-		device: "auto",
+		dtype: "q4f16",
+		device: "best",
 		generationConfig: {
 			max_new_tokens: 1024,
 			do_sample: false,
@@ -37,36 +35,4 @@ export class DeepseekProvider extends BaseProvider {
 			},
 		},
 	};
-
-	async loadModel(modelPath: string, options: ModelOptions = {}): Promise<BaseModel> {
-		const { capabilities, performance, config } = await this.detectCapabilities(modelPath);
-		const modelConfig = this.getConfigForModel(modelPath);
-
-		// Load tokenizer and model with model-specific settings
-		const [tokenizer, instance] = await Promise.all([
-			AutoTokenizer.from_pretrained(modelPath, {
-				progress_callback: info => this.handleProgress("tokenizer", info, options.onProgress),
-			}),
-			AutoModelForCausalLM.from_pretrained(modelPath, {
-				...options,
-				dtype: options.dtype || modelConfig.dtype,
-				device: options.device || modelConfig.device,
-				progress_callback: info => this.handleProgress("model", info, options.onProgress),
-			}),
-		]);
-
-		return {
-			id: modelPath,
-			provider: "deepseek",
-			capabilities,
-			performance: {
-				...performance,
-				...modelConfig.performance,
-			},
-			config,
-			tokenizer,
-			instance,
-			generationConfig: modelConfig.generationConfig,
-		};
-	}
 }

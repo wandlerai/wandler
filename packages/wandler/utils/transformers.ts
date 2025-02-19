@@ -5,13 +5,236 @@
   between worker and main thread implementations.
 */
 
-import { TextStreamer } from "@huggingface/transformers";
+import type { PretrainedConfig, PreTrainedModel } from "@huggingface/transformers";
+import {
+	AutoConfig,
+	AutoModelForCausalLM,
+	AutoTokenizer,
+	TextStreamer,
+} from "@huggingface/transformers";
 
 import type { Message } from "@wandler/types/message";
-import type { BaseModel } from "@wandler/types/model";
+import type {
+	BaseModel,
+	ModelCapabilities,
+	ModelDevice,
+	ModelDtype,
+	ModelOptions,
+	ModelPerformance,
+} from "@wandler/types/model";
+
+// Types for device selection
+export type DeviceType = ModelDevice;
+export type TransformersDeviceType = Exclude<ModelDevice, "best">;
+
+export interface DeviceInfo {
+	type: DeviceType;
+	actual: TransformersDeviceType;
+	capabilities: {
+		webgpu?: boolean;
+		wasm?: boolean;
+	};
+}
 
 // Keep track of past key values for models that support KV cache
 let past_key_values_cache: any = null;
+
+// Model Loading Functions
+export async function selectBestDevice(
+	requested: DeviceType = "auto"
+): Promise<TransformersDeviceType> {
+	if (requested === "best") {
+		try {
+			// Check for WebGPU support
+			if (typeof navigator !== "undefined" && "gpu" in navigator) {
+				console.log("[Transformers] WebGPU is available, using it");
+				return "webgpu";
+			}
+		} catch (error) {
+			console.log("[Transformers] WebGPU not available:", error);
+		}
+		console.log("[Transformers] Falling back to auto device selection");
+		return "auto";
+	}
+	return requested as TransformersDeviceType;
+}
+
+export async function loadTokenizer(modelPath: string, options: ModelOptions = {}) {
+	console.log("[Transformers] Loading tokenizer for", modelPath);
+	return AutoTokenizer.from_pretrained(modelPath, {
+		progress_callback: options.onProgress,
+	});
+}
+
+export async function loadModelInstance(
+	modelPath: string,
+	options: ModelOptions = {}
+): Promise<PreTrainedModel> {
+	const requestedDevice = options.device as DeviceType;
+	const device =
+		requestedDevice === "best"
+			? await selectBestDevice(requestedDevice)
+			: (requestedDevice as TransformersDeviceType);
+
+	console.log(`[Transformers] Loading model with device: ${device}`);
+
+	return AutoModelForCausalLM.from_pretrained(modelPath, {
+		...options,
+		device,
+		progress_callback: options.onProgress,
+	});
+}
+
+// Known vision-language model types
+const VL_MODEL_TYPES = [
+	"idefics", // HuggingFace's IDEFICS
+	"git", // Microsoft's Generative Image-to-Text
+	"blip", // Salesforce's BLIP
+	"vlm", // Generic Vision-Language Models
+	"flava", // Facebook's FLAVA
+	"instructblip", // Salesforce's InstructBLIP
+	"kosmos", // Microsoft's Kosmos
+];
+
+// Extended config type to include fields not in PretrainedConfig
+interface ExtendedConfig extends PretrainedConfig {
+	architectures?: string[];
+	text_config?: {
+		architectures?: string[];
+	};
+	vision_config?: Record<string, any>;
+	image_size?: number;
+	use_cache?: boolean;
+	num_key_value_heads?: number;
+	num_attention_heads?: number;
+	torch_dtype?: string;
+}
+
+export async function detectCapabilities(modelPath: string): Promise<{
+	capabilities: ModelCapabilities;
+	performance: ModelPerformance;
+	config: Record<string, any>;
+}> {
+	try {
+		// Load model config from root using AutoConfig
+		const config = (await AutoConfig.from_pretrained(modelPath)) as ExtendedConfig;
+		console.log("[Transformers] Raw config:", config);
+
+		// Detect capabilities based on architectures and config
+		const capabilities: ModelCapabilities = {
+			textGeneration:
+				config.architectures?.some(
+					(a: string) =>
+						a.toLowerCase().includes("forcausallm") || // Text generation
+						a.toLowerCase().includes("forconditionalgeneration") ||
+						a.toLowerCase().includes("qwen") // Qwen models are for text generation
+				) ||
+				config.text_config?.architectures?.some(
+					(a: string) => a.toLowerCase().includes("llm") || a.toLowerCase().includes("causallm")
+				) ||
+				// Many VL models can generate text
+				VL_MODEL_TYPES.some(type => config.model_type?.toLowerCase().includes(type)) ||
+				false,
+			textClassification:
+				config.architectures?.some((a: string) =>
+					a.toLowerCase().includes("forsequenceclassification")
+				) || false,
+			imageGeneration:
+				config.architectures?.some(
+					(a: string) =>
+						a.toLowerCase().includes("forimagegeneration") ||
+						config.model_type === "stable_diffusion"
+				) || false,
+			vision:
+				config.architectures?.some(
+					(a: string) =>
+						a.toLowerCase().includes("forvision") ||
+						a.toLowerCase().includes("vit") ||
+						config.model_type?.toLowerCase().includes("vision")
+				) ||
+				Boolean(config.vision_config) || // Has vision config
+				Boolean(config.image_size) || // Has image size parameter
+				// Check for known vision-language model types
+				VL_MODEL_TYPES.some(type => config.model_type?.toLowerCase().includes(type)) ||
+				false,
+			audioProcessing:
+				config.architectures?.some(
+					(a: string) =>
+						a.toLowerCase().includes("foraudioclassification") || config.model_type === "whisper"
+				) || false,
+		};
+
+		// Add performance hints based on config
+		const performance: ModelPerformance = {
+			supportsKVCache: config.use_cache === true,
+			groupedQueryAttention:
+				(config.num_key_value_heads ?? config.num_attention_heads ?? 1) <
+				(config.num_attention_heads ?? 1),
+			recommendedDtype: (config["transformers.js_config"]?.dtype ||
+				config.torch_dtype ||
+				"auto") as ModelDtype,
+			kvCacheDtype: config["transformers.js_config"]?.kv_cache_dtype as
+				| Record<string, string>
+				| undefined,
+		};
+
+		console.log("[Transformers] Detected capabilities:", capabilities);
+		console.log("[Transformers] Performance settings:", performance);
+
+		return {
+			capabilities,
+			performance,
+			config: config as Record<string, any>,
+		};
+	} catch (error) {
+		console.error("[Transformers] Error detecting capabilities:", error);
+		// Fallback to safe defaults if detection fails
+		return {
+			capabilities: {
+				textGeneration: true, // Assume text generation as fallback
+				textClassification: false,
+				imageGeneration: false,
+				audioProcessing: false,
+				vision: false,
+			},
+			performance: {
+				supportsKVCache: true,
+				groupedQueryAttention: false,
+				recommendedDtype: "auto",
+			},
+			config: {},
+		};
+	}
+}
+
+export async function loadTransformersModel(
+	modelPath: string,
+	options: ModelOptions = {}
+): Promise<BaseModel> {
+	try {
+		console.log("[Transformers] Loading model:", modelPath, "with options:", options);
+
+		const [tokenizer, instance] = await Promise.all([
+			loadTokenizer(modelPath, options),
+			loadModelInstance(modelPath, options),
+		]);
+
+		const { capabilities, performance, config } = await detectCapabilities(modelPath);
+
+		return {
+			id: modelPath,
+			provider: "transformers",
+			tokenizer,
+			instance,
+			capabilities,
+			performance,
+			config,
+		};
+	} catch (error) {
+		console.error("[Transformers] Error loading model:", error);
+		throw error;
+	}
+}
 
 export interface GenerateConfig {
 	// Input options (one must be provided)

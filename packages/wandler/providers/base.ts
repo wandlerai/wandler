@@ -1,22 +1,12 @@
-import type {
-	BaseModel,
-	ModelCapabilities,
-	ModelConfig,
-	ModelOptions,
-	ModelPerformance,
-	ProgressInfo,
-} from "@wandler/types/model";
+import type { BaseModel, ModelConfig, ModelOptions, ModelPerformance } from "@wandler/types/model";
+import { detectCapabilities, loadModelInstance, loadTokenizer } from "@wandler/utils/transformers";
 
 export abstract class BaseProvider {
-	protected progress: Record<string, { loaded: number; total: number }> = {};
-
 	// Base configuration that all providers should override
 	protected abstract baseConfig: ModelConfig;
 
 	// Model-specific configurations that override the base config
 	protected abstract modelConfigs: Record<string, Partial<ModelConfig>>;
-
-	abstract loadModel(modelPath: string, options?: ModelOptions): Promise<BaseModel>;
 
 	protected getConfigForModel(modelPath: string): ModelConfig {
 		const modelConfig = this.modelConfigs[modelPath] || {};
@@ -40,59 +30,31 @@ export abstract class BaseProvider {
 	}
 
 	getModelPerformance(modelPath: string): ModelPerformance {
-		return this.getConfigForModel(modelPath).performance;
-	}
-
-	protected handleProgress(
-		component: string,
-		info: any,
-		callback?: (info: ProgressInfo) => void
-	): void {
-		if (callback && info.status === "progress") {
-			callback({
-				status: "progress",
-				component,
-				file: info.file,
-				loaded: info.loaded,
-				total: info.total,
-			});
-		}
-	}
-
-	protected async detectCapabilities(modelPath: string): Promise<{
-		capabilities: ModelCapabilities;
-		performance: ModelPerformance;
-		config: Record<string, any>;
-	}> {
+		const config = this.getConfigForModel(modelPath);
 		return {
-			capabilities: {
-				textGeneration: true,
-				textClassification: false,
-				imageGeneration: false,
-				audioProcessing: false,
-				vision: false,
-			},
-			performance: {
-				supportsKVCache: true,
-				groupedQueryAttention: false,
-				recommendedDtype: "auto",
-			},
-			config: {},
+			supportsKVCache: config.performance?.supportsKVCache ?? true,
+			groupedQueryAttention: config.performance?.groupedQueryAttention ?? false,
+			recommendedDtype: config.performance?.recommendedDtype ?? "q4f16",
 		};
 	}
 
-	public async loadTokenizer(modelPath: string, options: ModelOptions = {}): Promise<any> {
-		throw new Error("loadTokenizer not implemented");
-	}
-
-	public async loadInstance(modelPath: string, options: ModelOptions = {}): Promise<any> {
-		throw new Error("loadInstance not implemented");
-	}
-
 	public async loadModel(modelPath: string, options: ModelOptions = {}): Promise<BaseModel> {
-		const tokenizer = await this.loadTokenizer(modelPath, options);
-		const instance = await this.loadInstance(modelPath, options);
-		const { capabilities, performance, config } = await this.detectCapabilities(modelPath);
+		// Get model config and merge with options
+		const modelConfig = this.getConfigForModel(modelPath);
+		const mergedOptions = {
+			...options,
+			dtype: options.dtype || modelConfig.dtype,
+			device: options.device || modelConfig.device,
+		};
+
+		// Load tokenizer and model in parallel
+		const [tokenizer, instance] = await Promise.all([
+			loadTokenizer(modelPath, mergedOptions),
+			loadModelInstance(modelPath, mergedOptions),
+		]);
+
+		// Detect capabilities and get performance settings
+		const { capabilities, performance, config } = await detectCapabilities(modelPath);
 
 		return {
 			id: modelPath,
@@ -100,9 +62,12 @@ export abstract class BaseProvider {
 			tokenizer,
 			instance,
 			capabilities,
-			performance,
+			performance: {
+				...performance,
+				...modelConfig.performance,
+			},
 			config,
-			generationConfig: this.getConfigForModel(modelPath).generationConfig,
+			generationConfig: modelConfig.generationConfig,
 		};
 	}
 }

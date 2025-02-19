@@ -14,6 +14,7 @@ export type ModelDtype =
 
 export type ModelDevice =
 	| "auto"
+	| "best"
 	| "webgpu"
 	| "gpu"
 	| "cpu"
