@@ -53,13 +53,25 @@ async function loadModel(modelPath: string, options: any = {}) {
 			model = await provider.loadModel(modelPath, wrappedOptions);
 		} catch (error: any) {
 			console.error("[Worker] Model loading failed:", error);
+
+			// Check if error message indicates unauthorized access or failed fetch
+			const errorMessage = error?.message || String(error);
+			if (
+				errorMessage.includes("Unauthorized access to file") ||
+				errorMessage.includes("Failed to fetch")
+			) {
+				throw new Error(`The model "${modelPath}" does not exist on Hugging Face`);
+			}
+
 			// Check if the error is a number (invalid model response)
 			if (typeof error === "number") {
 				throw new Error(
-					`Failed to load model: there was an error in transformers.js, but we don't know exactly what it means: ${error}`
+					`There was an error in transformers.js, but we don't know exactly what it means: ${error}`
 				);
 			}
-			throw new Error(`Failed to load model: ${error?.message || String(error)}`);
+
+			// For any other errors, pass through the message
+			throw new Error(`${errorMessage}`);
 		}
 
 		console.log("[Worker] Model loaded with provider:", provider.constructor.name);

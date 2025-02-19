@@ -1,6 +1,7 @@
 <!doctype html>
 <html>
 	<head>
+		<meta charset="UTF-8" />
 		<title>Wandler Load Model Test</title>
 		<style>
 			body {
@@ -9,43 +10,70 @@
 				padding: 2rem;
 				font-family: system-ui, sans-serif;
 			}
-			.status {
-				color: #666;
-				font-style: italic;
-				margin-bottom: 1rem;
-				padding: 0.5rem;
-				background: #e8eaf6;
-				border-radius: 4px;
-				border-left: 4px solid #3f51b5;
+			.model-display {
+				margin-bottom: 2rem;
 			}
-			.controls {
-				margin: 2rem 0;
+			.model-input-group {
+				display: grid;
+				grid-template-columns: 3fr 1fr;
+				gap: 0.25rem;
+				align-items: stretch;
+			}
+			.model-input {
+				position: relative;
 				display: flex;
-				gap: 1rem;
-				align-items: center;
 			}
-			button {
-				padding: 0.5rem 1rem;
+			.model-input input {
+				width: 100%;
+				padding: 0.75rem;
+				font-family: "Consolas", "Monaco", monospace;
+				font-size: 1rem;
+				border: 2px solid #3f51b5;
+				border-radius: 4px;
+				background: #1e1e1e;
+				color: #d4d4d4;
+				box-sizing: border-box;
+				height: 100%;
+				min-height: 48px;
+			}
+			.model-input input:focus {
+				outline: none;
+				border-color: #7986cb;
+				box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.2);
+			}
+			.model-input input:disabled {
+				opacity: 0.7;
+				cursor: not-allowed;
+			}
+			.load-btn {
+				height: 48px;
+				padding: 0.75rem 1.5rem;
 				border-radius: 4px;
 				border: none;
 				background: #3f51b5;
 				color: white;
 				cursor: pointer;
+				font-size: 1.2rem;
+				font-weight: 500;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 0.5rem;
+				transition: all 0.2s ease;
+				box-sizing: border-box;
 			}
-			button:disabled {
+			.load-btn:hover:not(:disabled) {
+				background: #283593;
+			}
+			.load-btn:disabled {
 				background: #ccc;
 				cursor: not-allowed;
-			}
-			.model-info {
-				margin-top: 2rem;
-			}
-			.model-display {
-				margin-bottom: 2rem;
 			}
 			.model-tags {
 				display: flex;
 				gap: 0.5rem;
 				margin-top: 0.5rem;
+				flex-wrap: wrap;
 			}
 			.tag {
 				padding: 0.25rem 0.75rem;
@@ -53,15 +81,88 @@
 				font-size: 0.875rem;
 				font-weight: 500;
 			}
-			.tag-model {
+			.tag-textgeneration {
 				background: #39ff14;
 				color: black;
 			}
-			.tag-type {
+			.tag-textclassification {
 				background: #ff1493;
 				color: white;
 			}
-			pre {
+			.tag-imagegeneration {
+				background: #00bfff;
+				color: white;
+			}
+			.tag-audioprocessing {
+				background: #ffd700;
+				color: black;
+			}
+			.tag-vision {
+				background: #9932cc;
+				color: white;
+			}
+			.tag-hf {
+				background: #ffd700;
+				color: black;
+			}
+
+			.status-display {
+				margin: 2rem 0;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 1rem;
+			}
+			.status-icon {
+				width: 3rem;
+				height: 3rem;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 50%;
+				font-size: 1.5rem;
+			}
+			.status-ready {
+				background: #e8eaf6;
+				color: #3f51b5;
+			}
+			.status-loading {
+				background: #fff3e0;
+				color: #f57c00;
+				animation: pulse 1.5s infinite;
+			}
+			.status-success {
+				background: #e8f5e9;
+				color: #43a047;
+			}
+			.status-error {
+				background: #ffebee;
+				color: #d32f2f;
+				cursor: pointer;
+			}
+			@keyframes pulse {
+				0% {
+					transform: scale(1);
+				}
+				50% {
+					transform: scale(1.1);
+				}
+				100% {
+					transform: scale(1);
+				}
+			}
+			.status-text {
+				font-size: 1rem;
+				color: #666;
+			}
+			.model-info {
+				margin-top: 2rem;
+			}
+			.model-info h2 {
+				color: #3f51b5;
+				margin-bottom: 1rem;
+			}
+			.model-info pre {
 				background: #1e1e1e;
 				color: #d4d4d4;
 				padding: 1rem;
@@ -69,13 +170,33 @@
 				overflow: auto;
 				font-family: "Consolas", "Monaco", monospace;
 				margin: 0;
+				white-space: pre-wrap;
 			}
-			.error {
-				color: #d32f2f;
-				background: #ffebee;
+			.model-info .json-key {
+				color: #9cdcfe;
+			}
+			.model-info .json-string {
+				color: #ce9178;
+			}
+			.model-info .json-number {
+				color: #b5cea8;
+			}
+			.model-info .json-boolean {
+				color: #569cd6;
+			}
+			.model-info .json-null {
+				color: #569cd6;
+			}
+			.error-details {
+				display: none;
+				margin-top: 1rem;
 				padding: 1rem;
+				background: #ffebee;
 				border-radius: 4px;
-				margin: 1rem 0;
+				color: #d32f2f;
+			}
+			.error-details.visible {
+				display: block;
 			}
 		</style>
 	</head>
@@ -83,29 +204,88 @@
 		<h1>Wandler Load Model Test</h1>
 
 		<div class="model-display">
-			<pre>onnx-community/Qwen2.5-Coder-0.5B-Instruct</pre>
-			<div class="model-tags">
-				<span class="tag tag-model">model</span>
-				<span class="tag tag-type">text</span>
+			<div class="model-input-group">
+				<div class="model-input">
+					<input
+						type="text"
+						id="model-id"
+						value="onnx-community/Qwen2.5-Coder-0.5B-Instruct"
+						placeholder="Enter model ID (e.g., onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX)"
+					/>
+				</div>
+				<button id="load-btn" class="load-btn">
+					<span class="btn-text">Load</span>
+				</button>
 			</div>
+			<div class="model-tags"></div>
 		</div>
 
-		<div class="controls">
-			<button id="load-btn">Load Model</button>
-			<span id="status">Ready to load model</span>
+		<div class="status-display">
+			<div id="status-icon" class="status-icon status-ready">▶️</div>
+			<div id="status" class="status-text">Ready to load model</div>
 		</div>
 
-		<div id="model-info" class="model-info" style="display: none"></div>
+		<div id="model-info" class="model-info" style="display: none">
+			<h2>Model Configuration</h2>
+			<pre id="model-config"></pre>
+		</div>
 
 		<script type="module">
 			import { loadModel, generateText, streamText } from "../../packages/wandler/index.ts";
 
+			// Initialize test API first - this is our single source of truth
+			window.testAPI = {
+				loadModel,
+				generateText,
+				streamText,
+			};
+
 			const loadBtn = document.getElementById("load-btn");
+			const modelInput = document.getElementById("model-id");
 			const status = document.getElementById("status");
+			const statusIcon = document.getElementById("status-icon");
 			const modelInfo = document.getElementById("model-info");
+			const modelTags = document.querySelector(".model-tags");
 
 			const testLogs = [];
 			let model = null;
+			let currentError = null;
+
+			const CAPABILITY_LABELS = {
+				textGeneration: "text",
+				textClassification: "classification",
+				imageGeneration: "image",
+				audioProcessing: "audio",
+				vision: "vision",
+			};
+
+			function generateHuggingFaceLink(modelPath) {
+				return `https://huggingface.co/${modelPath}`;
+			}
+
+			// Add function to update HF tag
+			function updateHFTag(modelPath) {
+				// Check if HF tag already exists
+				const existingHfTag = modelTags.querySelector(".tag-hf");
+				if (existingHfTag) {
+					existingHfTag.href = generateHuggingFaceLink(modelPath);
+				} else {
+					modelTags.insertAdjacentHTML(
+						"afterbegin",
+						`<a href="${generateHuggingFaceLink(modelPath)}" target="_blank" class="tag tag-hf">
+							hf
+						</a>`
+					);
+				}
+			}
+
+			// Show HF tag immediately for initial model
+			updateHFTag(document.getElementById("model-id").value.trim());
+
+			// Update HF tag when model input changes
+			document.getElementById("model-id").addEventListener("input", e => {
+				updateHFTag(e.target.value.trim());
+			});
 
 			function logTestEvent(event) {
 				testLogs.push({
@@ -114,12 +294,68 @@
 				});
 			}
 
+			function updateStatus(state, message) {
+				status.textContent = message;
+				statusIcon.className = `status-icon status-${state}`;
+
+				switch (state) {
+					case "ready":
+						statusIcon.textContent = "▶️";
+						break;
+					case "loading":
+						statusIcon.textContent = "⌛";
+						break;
+					case "success":
+						statusIcon.textContent = "✔️";
+						break;
+					case "error":
+						statusIcon.textContent = "❌";
+						break;
+				}
+			}
+
+			function syntaxHighlight(json) {
+				if (typeof json !== "string") {
+					json = JSON.stringify(json, null, 2);
+				}
+				return json.replace(
+					/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+					function (match) {
+						let cls = "json-number";
+						if (/^"/.test(match)) {
+							if (/:$/.test(match)) {
+								cls = "json-key";
+							} else {
+								cls = "json-string";
+							}
+						} else if (/true|false/.test(match)) {
+							cls = "json-boolean";
+						} else if (/null/.test(match)) {
+							cls = "json-null";
+						}
+						return '<span class="' + cls + '">' + match + "</span>";
+					}
+				);
+			}
+
 			async function handleLoadModel() {
 				try {
 					loadBtn.disabled = true;
-					status.textContent = "Loading model...";
+					modelInput.disabled = true;
+					updateStatus("loading", "Loading model...");
+					currentError = null;
+					modelInfo.style.display = "none";
 
-					model = await loadModel("onnx-community/Qwen2.5-Coder-0.5B-Instruct", {
+					// Update HF tag for current model path
+					const modelPath = modelInput.value.trim();
+					updateHFTag(modelPath);
+
+					// Clear only capability tags, keeping HF tag
+					const capabilityTags = modelTags.querySelectorAll(".tag:not(.tag-hf)");
+					capabilityTags.forEach(tag => tag.remove());
+
+					// Use window.testAPI.loadModel instead of direct import
+					model = await window.testAPI.loadModel(modelPath, {
 						onProgress: info => {
 							if (info.status === "progress") {
 								const mb = (info.loaded / (1024 * 1024)).toFixed(1);
@@ -129,41 +365,48 @@
 							}
 							logTestEvent({ type: "progress", info });
 						},
-						device: "auto",
 					});
 
 					logTestEvent({ type: "loaded", capabilities: model.capabilities });
 
-					// Display model capabilities
-					modelInfo.style.display = "block";
-					modelInfo.innerHTML = `
-						<h2>Capabilities</h2>
-						<pre>${JSON.stringify(model.capabilities, null, 2)}</pre>
-					`;
-					status.textContent = "Model loaded successfully!";
+					// Display model configuration
+					if (model.config) {
+						const modelConfig = document.getElementById("model-config");
+						modelConfig.innerHTML = syntaxHighlight(model.config);
+						modelInfo.style.display = "block";
+					}
+
+					// Append capability tags after HF tag
+					Object.entries(model.capabilities)
+						.filter(([_, enabled]) => enabled)
+						.forEach(([capability, _]) => {
+							modelTags.insertAdjacentHTML(
+								"beforeend",
+								`<span class="tag tag-${capability.toLowerCase()}">${CAPABILITY_LABELS[capability]}</span>`
+							);
+						});
+
+					updateStatus("success", "Model loaded successfully!");
 				} catch (error) {
 					console.log(error);
-					const errorDiv = document.createElement("div");
-					errorDiv.className = "error";
-					errorDiv.textContent = `Error loading model: ${error.message}`;
-					modelInfo.before(errorDiv);
-
+					currentError = error;
+					updateStatus("error", `Failed to load model: ${error.message}`);
 					logTestEvent({ type: "error", error: error.message });
-					status.textContent = "Failed to load model";
 				} finally {
 					loadBtn.disabled = false;
+					modelInput.disabled = false;
 				}
 			}
 
 			// Wire up event handlers
 			loadBtn.addEventListener("click", handleLoadModel);
+			modelInput.addEventListener("keypress", e => {
+				if (e.key === "Enter") {
+					handleLoadModel();
+				}
+			});
 
-			// Make test functions available globally for Playwright
-			window.testAPI = {
-				loadModel,
-				generateText,
-				streamText,
-			};
+			// Make test functions and logs available globally
 			window.testLogs = testLogs;
 			window.logTestEvent = logTestEvent;
 		</script>

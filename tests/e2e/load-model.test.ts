@@ -16,35 +16,35 @@ declare global {
 			info?: ProgressInfo;
 			capabilities?: ModelCapabilities;
 			error?: string;
+			model?: string;
+			options?: any;
 		}>;
 		logTestEvent: (event: any) => void;
 	}
 }
 
-// Cache model between tests for performance
-let loadedModel = null;
-
 test.describe("loadModel E2E", () => {
+	test.beforeEach(async ({ page }) => {
+		// Navigate to page first
+		await page.goto("/load-model.html");
+
+		// Inject WASM device configuration because webgpu is not supported in playwright out of the box
+		await page.evaluate(() => {
+			const originalLoadModel = window.testAPI.loadModel;
+			window.testAPI.loadModel = async (model: string, options: any = {}) => {
+				window.logTestEvent({
+					type: "override_called",
+					model,
+					options,
+				});
+				return originalLoadModel(model, { ...options, device: "wasm" });
+			};
+		});
+	});
+
 	test("loads model and shows capabilities", async ({ page }) => {
-		console.log("Starting test...");
-
-		// Try direct URL first
-		console.log("Checking if server is accessible...");
-		const checkResponse = await page.goto("http://localhost:3001");
-		console.log("Server check response:", checkResponse?.status());
-		console.log("Server root content:", await page.content());
-
-		// Go to the load-model demo page with full URL
-		console.log("Navigating to load-model.html");
-		const response = await page.goto("http://localhost:3001/load-model.html");
-		console.log("Navigation response status:", response?.status());
-		console.log("Final URL:", page.url());
-		console.log("Page content:", await page.content());
-
 		// Verify initial state
-		console.log("Checking initial state...");
 		await expect(page.getByText("Ready to load model")).toBeVisible();
-		await expect(page.locator("#model-info")).toBeHidden();
 
 		// Click load button and wait for model to load
 		await page.click("#load-btn");
@@ -52,7 +52,6 @@ test.describe("loadModel E2E", () => {
 
 		// Wait for model to finish loading and verify success
 		await expect(page.getByText("Model loaded successfully!")).toBeVisible({ timeout: 120000 });
-		await expect(page.locator("#model-info")).toBeVisible();
 
 		// Verify test logs contain progress and loaded events
 		const logs = await page.evaluate(() => window.testLogs);
@@ -66,60 +65,42 @@ test.describe("loadModel E2E", () => {
 		expect(loadedEvent?.capabilities?.textGeneration).toBeTruthy();
 	});
 
-	test("shows loading progress", async ({ page }) => {
-		await page.goto("/load-model.html");
-
-		// Start loading and track status text changes
-		const statusElement = page.locator("#status");
-		const progressTexts: string[] = [];
-		await statusElement.evaluate(element => {
-			const observer = new MutationObserver(mutations => {
-				mutations.forEach(mutation => {
-					if (mutation.type === "characterData") {
-						progressTexts.push(mutation.target.textContent || "");
-					}
-				});
-			});
-			observer.observe(element, { characterData: true, subtree: true });
-		});
-
+	test("handles invalid model paths", async ({ page }) => {
+		// Test case 1: multi-part invalid path
+		await page.fill("#model-id", "this/does/not/exist");
 		await page.click("#load-btn");
 
-		// Wait for loading to complete
-		await expect(page.getByText("Model loaded successfully!")).toBeVisible({ timeout: 30000 });
+		await expect(page.getByText("Loading model...")).toBeVisible();
+		await expect(page.locator("#load-btn")).toBeDisabled();
+		await expect(page.locator("#model-id")).toBeDisabled();
 
-		// Verify we got progress updates
-		const logs = await page.evaluate(() => window.testLogs);
-		const progressEvents = logs.filter(log => log.type === "progress");
-		expect(progressEvents.length).toBeGreaterThan(0);
+		await expect(
+			page.getByText('The model "this/does/not/exist" does not exist on Hugging Face')
+		).toBeVisible();
+		await expect(page.locator(".status-icon")).toHaveClass(/status-error/);
 
-		// Verify progress events have expected structure
-		progressEvents.forEach(event => {
-			expect(event.info).toHaveProperty("status");
-		});
-	});
-
-	test("handles loading errors gracefully", async ({ page }) => {
-		await page.goto("/load-model.html");
-
-		// Inject a function that will throw an error
-		await page.evaluate(() => {
-			window.testAPI.loadModel = async () => {
-				throw new Error("Test error");
-			};
-		});
-
-		await page.click("#load-btn");
-
-		// Verify error is displayed
-		await expect(page.getByText("Error loading model: Test error")).toBeVisible();
-		await expect(page.getByText("Failed to load model")).toBeVisible();
-
-		// Verify error is logged
-		const logs = await page.evaluate(() => window.testLogs);
-		expect(logs.some(log => log.type === "error" && log.error === "Test error")).toBeTruthy();
-
-		// Verify button is re-enabled
 		await expect(page.locator("#load-btn")).toBeEnabled();
+		await expect(page.locator("#model-id")).toBeEnabled();
+
+		// Test case 2: single-word invalid path
+		await page.fill("#model-id", "doesnotexist");
+		await page.click("#load-btn");
+
+		await expect(page.getByText("Loading model...")).toBeVisible();
+		await expect(page.locator("#load-btn")).toBeDisabled();
+		await expect(page.locator("#model-id")).toBeDisabled();
+
+		await expect(
+			page.getByText('The model "doesnotexist" does not exist on Hugging Face')
+		).toBeVisible();
+		await expect(page.locator(".status-icon")).toHaveClass(/status-error/);
+
+		await expect(page.locator("#load-btn")).toBeEnabled();
+		await expect(page.locator("#model-id")).toBeEnabled();
+
+		// Verify errors are logged
+		const logs = await page.evaluate(() => window.testLogs);
+		const errorLogs = logs.filter(log => log.type === "error");
+		expect(errorLogs.length).toBe(2);
 	});
 });
