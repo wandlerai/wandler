@@ -76,6 +76,9 @@ async function streamWithWorker(
 			if (options.abortSignal instanceof AbortSignal) {
 				const controller = new AbortController();
 				controller.abort();
+				const error = new Error("Request aborted by user");
+				error.name = "AbortError";
+				throw error;
 			}
 		},
 	}) as StreamResult<string>["textStream"];
@@ -93,7 +96,9 @@ async function streamWithWorker(
 	const bridge = model.worker!.bridge;
 	bridge.setMessageHandler((e: MessageEvent) => {
 		if (options.abortSignal?.aborted) {
-			controller.error(new Error("Request aborted by user"));
+			const error = new Error("Request aborted by user");
+			error.name = "AbortError";
+			controller.error(error);
 			return;
 		}
 
@@ -159,6 +164,9 @@ async function streamInMainThread(
 			if (options.abortSignal instanceof AbortSignal) {
 				const controller = new AbortController();
 				controller.abort();
+				const error = new Error("Request aborted by user");
+				error.name = "AbortError";
+				throw error;
 			}
 		},
 	}) as StreamResult<string>["textStream"];

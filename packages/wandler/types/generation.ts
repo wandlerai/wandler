@@ -45,6 +45,9 @@ export interface TransformersGenerateConfig extends GenerationConfig {
 	streamer?: any;
 	streamCallback?: (token: string) => void;
 
+	// Abort options
+	abortSignal?: AbortSignal;
+
 	// Internal options
 	return_dict_in_generate?: boolean;
 	output_scores?: boolean;

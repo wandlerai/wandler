@@ -2,7 +2,7 @@
 <html>
 	<head>
 		<meta charset="UTF-8" />
-		<title>Wandler Generate Text Test</title>
+		<title>Wandler Stream Text Test</title>
 		<style>
 			body {
 				max-width: 800px;
@@ -40,7 +40,7 @@
 				opacity: 0.7;
 				cursor: not-allowed;
 			}
-			.generate-btn {
+			.stream-btn {
 				height: 48px;
 				padding: 0.75rem 1.5rem;
 				border-radius: 4px;
@@ -56,42 +56,12 @@
 				gap: 0.5rem;
 				transition: all 0.2s ease;
 			}
-			.generate-btn:hover:not(:disabled) {
+			.stream-btn:hover:not(:disabled) {
 				background: #283593;
 			}
-			.generate-btn:disabled {
+			.stream-btn:disabled {
 				background: #ccc;
 				cursor: not-allowed;
-			}
-			.button-group {
-				display: flex;
-				gap: 1rem;
-			}
-			.abort-btn {
-				height: 48px;
-				padding: 0.75rem 1.5rem;
-				border-radius: 4px;
-				border: none;
-				background: #dc3545;
-				color: white;
-				cursor: pointer;
-				font-size: 1.2rem;
-				font-weight: 500;
-				display: none;
-				align-items: center;
-				justify-content: center;
-				gap: 0.5rem;
-				transition: all 0.2s ease;
-			}
-			.abort-btn:hover:not(:disabled) {
-				background: #bb2d3b;
-			}
-			.abort-btn:disabled {
-				background: #ccc;
-				cursor: not-allowed;
-			}
-			.abort-btn.visible {
-				display: flex;
 			}
 			.status-display {
 				margin: 2rem 0;
@@ -113,7 +83,7 @@
 				background: #e8eaf6;
 				color: #3f51b5;
 			}
-			.status-generating {
+			.status-streaming {
 				background: #fff3e0;
 				color: #f57c00;
 				animation: pulse 1.5s infinite;
@@ -150,23 +120,75 @@
 				font-family: "Consolas", "Monaco", monospace;
 				white-space: pre-wrap;
 				display: none;
+				line-height: 1.5;
+				position: relative;
 			}
 			.output-display.visible {
 				display: block;
 			}
+			.cursor {
+				display: inline-block;
+				width: 0.5em;
+				height: 1.2em;
+				background: #d4d4d4;
+				vertical-align: middle;
+				animation: blink 1s step-end infinite;
+				position: absolute;
+			}
+			@keyframes blink {
+				50% {
+					opacity: 0;
+				}
+			}
+			.button-group {
+				display: flex;
+				gap: 1rem;
+			}
+
+			.abort-btn {
+				height: 48px;
+				padding: 0.75rem 1.5rem;
+				border-radius: 4px;
+				border: none;
+				background: #dc3545;
+				color: white;
+				cursor: pointer;
+				font-size: 1.2rem;
+				font-weight: 500;
+				display: none;
+				align-items: center;
+				justify-content: center;
+				gap: 0.5rem;
+				transition: all 0.2s ease;
+			}
+			.abort-btn:hover:not(:disabled) {
+				background: #bb2d3b;
+			}
+			.abort-btn:disabled {
+				background: #ccc;
+				cursor: not-allowed;
+			}
+			.abort-btn.visible {
+				display: flex;
+			}
+
+			#stream-content {
+				display: inline;
+				white-space: pre-wrap;
+			}
 		</style>
 	</head>
 	<body>
-		<h1>Wandler Generate Text Test</h1>
+		<h1>Wandler Stream Text Test</h1>
 
 		<div class="input-display">
 			<div class="input-group">
 				<textarea id="prompt" class="text-input" placeholder="Enter your prompt here..." rows="4">
-Write a haiku about coding.</textarea
+Write a detailed essay about the history of coding.</textarea
 				>
 				<div class="button-group">
-					<button id="generate-btn" class="generate-btn">
-						<span class="btn-text">Generate</span>
+					<button id="stream-btn" class="stream-btn">
+						<span class="btn-text">Stream</span>
 					</button>
 					<button id="abort-btn" class="abort-btn">
 						<span class="btn-text">Abort</span>
@@ -177,14 +199,13 @@ Write a haiku about coding.</textarea
 
 		<div class="status-display">
 			<div id="status-icon" class="status-icon status-ready">▶️</div>
-			<div id="status" class="status-text">Ready to generate</div>
+			<div id="status" class="status-text">Ready to stream</div>
 		</div>
 
 		<div id="output" class="output-display"></div>
 
 		<script type="module">
 			import { loadModel, generateText, streamText } from "../../packages/wandler/index.ts";
-			import { env } from "@huggingface/transformers";
 
 			// Initialize test API first - this is our single source of truth
 			window.testAPI = {
@@ -193,12 +214,14 @@ Write a haiku about coding.</textarea
 				streamText,
 			};
 
-			const generateBtn = document.getElementById("generate-btn");
+			const streamBtn = document.getElementById("stream-btn");
 			const abortBtn = document.getElementById("abort-btn");
 			const promptInput = document.getElementById("prompt");
 			const status = document.getElementById("status");
 			const statusIcon = document.getElementById("status-icon");
 			const output = document.getElementById("output");
+			const cursor = document.createElement("span");
+			cursor.className = "cursor";
 
 			const testLogs = [];
 			let model = null;
@@ -220,7 +243,7 @@ Write a haiku about coding.</textarea
 						statusIcon.textContent = "▶️";
 						abortBtn.classList.remove("visible");
 						break;
-					case "generating":
+					case "streaming":
 						statusIcon.textContent = "⌛";
 						abortBtn.classList.add("visible");
 						break;
@@ -235,62 +258,68 @@ Write a haiku about coding.</textarea
 				}
 			}
 
-			async function handleGenerate() {
+			async function handleStream() {
 				try {
-					generateBtn.disabled = true;
+					streamBtn.disabled = true;
 					promptInput.disabled = true;
 					output.style.display = "none";
+					output.textContent = "";
 
 					// Create new abort controller and reset abort button
 					abortController = new AbortController();
 					abortBtn.disabled = false;
 
-					updateStatus("generating", "Generating text...");
-
 					// First ensure model is loaded
 					if (!model) {
-						updateStatus("generating", "Loading model first...");
+						updateStatus("streaming", "Loading model first...");
 						model = await window.testAPI.loadModel("onnx-community/Qwen2.5-Coder-0.5B-Instruct");
 						logTestEvent({ type: "model_loaded" });
 					}
 
-					// Update status to generating now that model is ready
-					updateStatus("generating", "Generating text...");
+					// Update status to streaming now that model is ready
+					updateStatus("streaming", "Streaming text...");
 
 					const prompt = promptInput.value.trim();
-					logTestEvent({ type: "generation_started", prompt });
+					logTestEvent({ type: "stream_started", prompt });
+
+					output.style.display = "block";
+					output.appendChild(cursor);
+
+					const { textStream } = await window.testAPI.streamText({
+						model,
+						messages: [{ role: "user", content: prompt }],
+						abortSignal: abortController.signal,
+					});
 
 					try {
-						const result = await window.testAPI.generateText({
-							model,
-							messages: [{ role: "user", content: prompt }],
-							abortSignal: abortController.signal,
-						});
-
-						output.textContent = result;
-						output.style.display = "block";
-						updateStatus("success", "Generation complete!");
-						logTestEvent({ type: "generation_complete", result });
+						for await (const chunk of textStream) {
+							output.insertBefore(document.createTextNode(chunk), cursor);
+							logTestEvent({ type: "stream_chunk", chunk });
+						}
+						cursor.remove();
+						updateStatus("success", "Stream complete!");
+						logTestEvent({ type: "stream_complete", result: output.textContent });
 					} catch (error) {
-						console.log("[Generation Error Details]", {
+						console.log("[Stream Error Details]", {
 							name: error.name,
 							message: error.message,
 							error,
 						});
 
-						if (error.name === "AbortError") {
-							updateStatus("ready", "Generation aborted");
-							logTestEvent({ type: "generation_aborted" });
+						// Handle both AbortError and error messages containing abort/aborted
+						if (error.name === "AbortError" || error.message.toLowerCase().includes("abort")) {
+							updateStatus("ready", "Stream aborted");
+							logTestEvent({ type: "stream_aborted" });
 						} else {
 							throw error;
 						}
 					}
 				} catch (error) {
 					console.error(error);
-					updateStatus("error", `Generation failed: ${error.message}`);
+					updateStatus("error", `Stream failed: ${error.message}`);
 					logTestEvent({ type: "error", error: error.message });
 				} finally {
-					generateBtn.disabled = false;
+					streamBtn.disabled = false;
 					promptInput.disabled = false;
 					abortController = null;
 					abortBtn.disabled = false;
@@ -304,12 +333,12 @@ Write a haiku about coding.</textarea
 			}
 
 			// Wire up event handlers
-			generateBtn.addEventListener("click", handleGenerate);
+			streamBtn.addEventListener("click", handleStream);
 			abortBtn.addEventListener("click", handleAbort);
 			promptInput.addEventListener("keypress", e => {
 				if (e.key === "Enter" && e.shiftKey) {
 					e.preventDefault();
-					handleGenerate();
+					handleStream();
 				}
 			});
 

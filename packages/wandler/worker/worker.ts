@@ -92,9 +92,23 @@ async function loadModel(modelPath: string, options: any = {}) {
 	}
 }
 
-async function handleGenerateText(messages: any[], options = {}) {
+async function handleGenerateText(
+	messages: any[],
+	options: { aborted?: boolean } & Record<string, any> = {}
+) {
 	if (!model?.tokenizer || !model.instance) {
 		throw new Error("Model not loaded");
+	}
+
+	// Create an AbortController for this generation
+	const controller = new AbortController();
+
+	// Check if already aborted
+	if (options.aborted) {
+		controller.abort();
+		const error = new Error("Request aborted by user");
+		error.name = "AbortError";
+		throw error;
 	}
 
 	console.log("[Worker] Generating text with messages:", messages);
@@ -105,12 +119,21 @@ async function handleGenerateText(messages: any[], options = {}) {
 		const { result, tokenCount } = await generateWithTransformers(model, {
 			messages,
 			...options,
+			abortSignal: controller.signal,
 		});
 
 		console.log("[Worker] Generation complete, result:", result);
 		return { result, tokenCount };
-	} catch (error) {
+	} catch (error: any) {
 		console.error("[Worker] Generation error:", error);
+
+		// If this is an abort error, make sure to throw it
+		if (error.name === "AbortError" || error.message?.toLowerCase().includes("abort")) {
+			const abortError = new Error("Request aborted by user");
+			abortError.name = "AbortError";
+			throw abortError;
+		}
+
 		throw error;
 	}
 }

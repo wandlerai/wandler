@@ -20,6 +20,7 @@ export interface WorkerMessage {
 		repetition_penalty?: number;
 		stop?: string[];
 		seed?: number;
+		aborted?: boolean;
 	};
 	id: string;
 }

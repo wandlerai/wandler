@@ -228,11 +228,25 @@ export async function generateWithTransformers(
 		// 5. Generate
 		let output;
 		try {
+			// Check abort signal before starting generation
+			if (config.abortSignal?.aborted) {
+				const error = new Error("Request aborted by user");
+				error.name = "AbortError";
+				throw error;
+			}
+
 			output = await model.instance.generate({
 				...inputs,
 				...generationConfig,
+				abortSignal: config.abortSignal,
 			});
 		} catch (error: any) {
+			// Check if this is an abort error
+			if (error.name === "AbortError" || error.message?.toLowerCase().includes("abort")) {
+				const abortError = new Error("Request aborted by user");
+				abortError.name = "AbortError";
+				throw abortError;
+			}
 			throw new Error(
 				`Model execution failed: ${error}. Please try a different dtype or open an issue.`
 			);

@@ -14,6 +14,10 @@ export default defineConfig({
 		trace: "on",
 		screenshot: "on",
 		video: "on",
+		/* Open DevTools automatically in debug mode */
+		launchOptions: {
+			devtools: process.env.PWDEBUG ? true : false,
+		},
 	},
 
 	/* Configure timeouts */

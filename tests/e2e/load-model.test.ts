@@ -69,4 +69,48 @@ test.describe("loadModel E2E", () => {
 		const errorLogs = logs.filter(log => log.type === "error");
 		expect(errorLogs.length).toBe(2);
 	});
+
+	test("loads model in main thread (no worker)", async ({ page }) => {
+		// Override loadModel to force main thread execution
+		await page.evaluate(() => {
+			const originalLoadModel = window.testAPI.loadModel;
+			window.testAPI.loadModel = async (model: string, options: any = {}) => {
+				window.logTestEvent({
+					type: "override_called",
+					model,
+					options: { ...options, useWorker: false },
+				});
+				return originalLoadModel(model, { ...options, useWorker: false });
+			};
+		});
+
+		// Verify initial state
+		await expect(page.getByText("Ready to load model")).toBeVisible();
+
+		// Click load button and wait for model to load
+		await page.click("#load-btn");
+		await expect(page.getByText("Loading model...")).toBeVisible();
+
+		// Wait for model to finish loading and verify success
+		await expect(page.getByText("Model loaded successfully!")).toBeVisible({ timeout: 120000 });
+
+		// Verify test logs
+		const logs = await page.evaluate(() => window.testLogs);
+
+		// Should have override called
+		expect(
+			logs.some(log => log.type === "override_called" && log.options.useWorker === false)
+		).toBeTruthy();
+
+		// Should have progress events
+		expect(logs.some(log => log.type === "progress")).toBeTruthy();
+
+		// Should have loaded event with capabilities
+		const loadedEvent = logs.find(log => log.type === "loaded");
+		expect(loadedEvent).toBeTruthy();
+		expect(loadedEvent?.capabilities?.textGeneration).toBeTruthy();
+
+		// Verify model config is displayed
+		await expect(page.locator("#model-config")).toBeVisible();
+	});
 });

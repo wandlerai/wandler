@@ -84,7 +84,9 @@ export async function generateText(options: NonStreamingGenerationOptions): Prom
 
 	// Handle abort signal
 	if (options.abortSignal?.aborted) {
-		throw new Error("Request aborted by user");
+		const error = new Error("Request aborted by user");
+		error.name = "AbortError";
+		throw error;
 	}
 
 	// Prepare messages and config
@@ -95,10 +97,13 @@ export async function generateText(options: NonStreamingGenerationOptions): Prom
 
 	// Choose implementation based on model provider
 	if (model.provider === "worker" && model.worker?.bridge) {
-		return generateWithWorker(model, messages, config);
+		return generateWithWorker(model, messages, config, options.abortSignal);
 	}
 
-	return generateInMainThread(model, messages, config);
+	return generateInMainThread(model, messages, {
+		...config,
+		abortSignal: options.abortSignal,
+	});
 }
 
 // --- Internal Implementation ---
@@ -110,20 +115,49 @@ export async function generateText(options: NonStreamingGenerationOptions): Prom
 async function generateWithWorker(
 	model: BaseModel,
 	messages: Message[],
-	config: TransformersGenerateConfig
+	config: TransformersGenerateConfig,
+	abortSignal?: AbortSignal
 ): Promise<string> {
-	const message: WorkerMessage = {
-		type: "generate",
-		payload: {
-			messages,
-			...config,
-		},
-		id: `generate-${Date.now()}`,
-	};
+	return new Promise((resolve, reject) => {
+		const bridge = model.worker!.bridge;
+		const messageId = `generate-${Date.now()}`;
 
-	const response = await model.worker!.bridge.sendMessage(message);
-	if (response.type === "error") throw response.payload;
-	return response.payload;
+		// Set up abort handler
+		const abortHandler = () => {
+			const error = new Error("Request aborted by user");
+			error.name = "AbortError";
+			reject(error);
+		};
+
+		// Listen for abort signal
+		abortSignal?.addEventListener("abort", abortHandler);
+
+		const message: WorkerMessage = {
+			type: "generate",
+			payload: {
+				messages,
+				...config,
+			},
+			id: messageId,
+		};
+
+		bridge
+			.sendMessage(message)
+			.then((response: { type: string; payload: any }) => {
+				if (response.type === "error") reject(response.payload);
+				else resolve(response.payload);
+			})
+			.catch(reject)
+			.finally(() => {
+				// Clean up abort listener
+				abortSignal?.removeEventListener("abort", abortHandler);
+			});
+
+		// If already aborted, reject immediately
+		if (abortSignal?.aborted) {
+			abortHandler();
+		}
+	});
 }
 
 /**
