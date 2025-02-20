@@ -9,16 +9,17 @@
   @packageDocumentation
 */
 
-import type { StreamingGenerationOptions } from "@wandler/types/generation";
+import type {
+	StreamingGenerationOptions,
+	TransformersGenerateConfig,
+} from "@wandler/types/generation";
 import type { Message } from "@wandler/types/message";
 import type { BaseModel } from "@wandler/types/model";
 import type { StreamResult } from "@wandler/types/stream";
 import type { WorkerMessage } from "@wandler/types/worker";
 import { prepareGenerationConfig, validateGenerationConfig } from "@wandler/utils/generation-utils";
 import { prepareMessages, validateMessages } from "@wandler/utils/message-utils";
-import { type GenerateConfig, generateWithTransformers } from "@wandler/utils/transformers";
-
-// --- Public Types ---
+import { generateWithTransformers } from "@wandler/utils/transformers";
 
 /**
  * Streams text generation from a model, returning chunks of text as they are generated.
@@ -55,8 +56,6 @@ export async function streamText(
 		: streamInMainThread(model, messages, config, options);
 }
 
-// --- Internal Implementation ---
-
 /**
  * Worker-based streaming implementation.
  * @internal
@@ -64,7 +63,7 @@ export async function streamText(
 async function streamWithWorker(
 	model: BaseModel,
 	messages: Message[],
-	config: GenerateConfig,
+	config: TransformersGenerateConfig,
 	options: StreamingGenerationOptions
 ): Promise<StreamResult<string>> {
 	let controller!: ReadableStreamDefaultController<string>;
@@ -107,23 +106,13 @@ async function streamWithWorker(
 		}
 	});
 
-	// Start streaming with retry logic
-	let retries = 0;
-	const maxRetries = options.maxRetries ?? 2;
-
-	const responsePromise = (async function tryStream(): Promise<string> {
-		try {
-			const response = await bridge.sendMessage(message);
+	// Start streaming
+	const responsePromise = bridge
+		.sendMessage(message)
+		.then((response: { type: string; payload: any }) => {
 			if (response.type === "error") throw response.payload;
 			return response.payload;
-		} catch (error) {
-			if (retries < maxRetries && !options.abortSignal?.aborted) {
-				retries++;
-				return tryStream();
-			}
-			throw error;
-		}
-	})();
+		});
 
 	return {
 		textStream,
@@ -157,7 +146,7 @@ async function streamWithWorker(
 async function streamInMainThread(
 	model: BaseModel,
 	messages: Message[],
-	config: GenerateConfig,
+	config: TransformersGenerateConfig,
 	options: StreamingGenerationOptions
 ): Promise<StreamResult<string>> {
 	let controller!: ReadableStreamDefaultController<string>;
@@ -174,30 +163,17 @@ async function streamInMainThread(
 		},
 	}) as StreamResult<string>["textStream"];
 
-	// Start generation with retry logic
-	let retries = 0;
-	const maxRetries = options.maxRetries ?? 2;
-
-	const generatePromise = (async function tryGenerate(): Promise<string> {
-		try {
-			const { result } = await generateWithTransformers(model, {
-				messages,
-				...config,
-				streamCallback: (token: string) => {
-					controller.enqueue(token);
-				},
-			});
-
-			controller.close();
-			return result;
-		} catch (error) {
-			if (retries < maxRetries && !options.abortSignal?.aborted) {
-				retries++;
-				return tryGenerate();
-			}
-			throw error;
-		}
-	})();
+	// Start generation
+	const generatePromise = generateWithTransformers(model, {
+		messages,
+		...config,
+		streamCallback: (token: string) => {
+			controller.enqueue(token);
+		},
+	}).then(({ result }) => {
+		controller.close();
+		return result;
+	});
 
 	return {
 		textStream,

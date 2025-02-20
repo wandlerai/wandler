@@ -75,10 +75,8 @@ async function loadModel(modelPath: string, options: any = {}) {
 		}
 
 		console.log("[Worker] Model loaded with provider:", provider.constructor.name);
-		console.log("[Worker] Model capabilities:", model.capabilities);
-		console.log("[Worker] Model performance settings:", model.performance);
-		console.log("[Worker] Using dtype:", options.performance?.recommendedDtype || "auto");
-		console.log("[Worker] Using device:", options.device || "webgpu");
+		console.log("[Worker] Using dtype:", model.options.dtype);
+		console.log("[Worker] Using device:", model.options.device);
 
 		console.log("[Worker] Warming up model...");
 		// Warm up the model with a dummy input

@@ -5,82 +5,44 @@
   between worker and main thread implementations.
 */
 
-import type { PretrainedConfig, PreTrainedModel } from "@huggingface/transformers";
-import {
-	AutoConfig,
-	AutoModelForCausalLM,
-	AutoTokenizer,
-	TextStreamer,
-} from "@huggingface/transformers";
+import type { PreTrainedModel } from "@huggingface/transformers";
+import { AutoConfig, AutoModel, AutoTokenizer, TextStreamer } from "@huggingface/transformers";
 
-import type { Message } from "@wandler/types/message";
+import type {
+	TransformersGenerateConfig,
+	TransformersGenerateResult,
+} from "@wandler/types/generation";
 import type {
 	BaseModel,
+	ExtendedModelConfig,
 	ModelCapabilities,
-	ModelDevice,
 	ModelDtype,
 	ModelOptions,
 	ModelPerformance,
+	TransformersDeviceType,
 } from "@wandler/types/model";
-
-// Types for device selection
-export type DeviceType = ModelDevice;
-export type TransformersDeviceType = Exclude<ModelDevice, "best">;
-
-export interface DeviceInfo {
-	type: DeviceType;
-	actual: TransformersDeviceType;
-	capabilities: {
-		webgpu?: boolean;
-		wasm?: boolean;
-	};
-}
 
 // Keep track of past key values for models that support KV cache
 let past_key_values_cache: any = null;
 
 // Model Loading Functions
-export async function selectBestDevice(
-	requested: DeviceType = "auto"
-): Promise<TransformersDeviceType> {
-	if (requested === "best") {
-		try {
-			// Check for WebGPU support
-			if (typeof navigator !== "undefined" && "gpu" in navigator) {
-				console.log("[Transformers] WebGPU is available, using it");
-				return "webgpu";
-			}
-		} catch (error) {
-			console.log("[Transformers] WebGPU not available:", error);
-		}
-		console.log("[Transformers] Falling back to auto device selection");
-		return "auto";
-	}
-	return requested as TransformersDeviceType;
+export async function loadModelInstance(
+	modelPath: string,
+	options: ModelOptions = {}
+): Promise<PreTrainedModel> {
+	console.log("[Transformers] Loading model:", modelPath);
+	console.log("[Transformers] Using options:", options);
+
+	return AutoModel.from_pretrained(modelPath, {
+		...options,
+		device: options.device as TransformersDeviceType,
+		progress_callback: options.onProgress,
+	});
 }
 
 export async function loadTokenizer(modelPath: string, options: ModelOptions = {}) {
 	console.log("[Transformers] Loading tokenizer for", modelPath);
 	return AutoTokenizer.from_pretrained(modelPath, {
-		progress_callback: options.onProgress,
-	});
-}
-
-export async function loadModelInstance(
-	modelPath: string,
-	options: ModelOptions = {}
-): Promise<PreTrainedModel> {
-	const requestedDevice = options.device as DeviceType;
-	const device =
-		requestedDevice === "best"
-			? await selectBestDevice(requestedDevice)
-			: (requestedDevice as TransformersDeviceType);
-
-	console.log(`[Transformers] Loading model with device: ${device}`);
-
-	return AutoModelForCausalLM.from_pretrained(modelPath, {
-		...options,
-		device,
 		progress_callback: options.onProgress,
 	});
 }
@@ -96,20 +58,6 @@ const VL_MODEL_TYPES = [
 	"kosmos", // Microsoft's Kosmos
 ];
 
-// Extended config type to include fields not in PretrainedConfig
-interface ExtendedConfig extends PretrainedConfig {
-	architectures?: string[];
-	text_config?: {
-		architectures?: string[];
-	};
-	vision_config?: Record<string, any>;
-	image_size?: number;
-	use_cache?: boolean;
-	num_key_value_heads?: number;
-	num_attention_heads?: number;
-	torch_dtype?: string;
-}
-
 export async function detectCapabilities(modelPath: string): Promise<{
 	capabilities: ModelCapabilities;
 	performance: ModelPerformance;
@@ -117,7 +65,7 @@ export async function detectCapabilities(modelPath: string): Promise<{
 }> {
 	try {
 		// Load model config from root using AutoConfig
-		const config = (await AutoConfig.from_pretrained(modelPath)) as ExtendedConfig;
+		const config = (await AutoConfig.from_pretrained(modelPath)) as ExtendedModelConfig;
 		console.log("[Transformers] Raw config:", config);
 
 		// Detect capabilities based on architectures and config
@@ -198,76 +146,13 @@ export async function detectCapabilities(modelPath: string): Promise<{
 				vision: false,
 			},
 			performance: {
-				supportsKVCache: true,
+				supportsKVCache: false,
 				groupedQueryAttention: false,
 				recommendedDtype: "auto",
 			},
 			config: {},
 		};
 	}
-}
-
-export async function loadTransformersModel(
-	modelPath: string,
-	options: ModelOptions = {}
-): Promise<BaseModel> {
-	try {
-		console.log("[Transformers] Loading model:", modelPath, "with options:", options);
-
-		const [tokenizer, instance] = await Promise.all([
-			loadTokenizer(modelPath, options),
-			loadModelInstance(modelPath, options),
-		]);
-
-		const { capabilities, performance, config } = await detectCapabilities(modelPath);
-
-		return {
-			id: modelPath,
-			provider: "transformers",
-			tokenizer,
-			instance,
-			capabilities,
-			performance,
-			config,
-		};
-	} catch (error) {
-		console.error("[Transformers] Error loading model:", error);
-		throw error;
-	}
-}
-
-export interface GenerateConfig {
-	// Input options (one must be provided)
-	inputs?: any; // If already tokenized
-	messages?: Message[]; // If needs tokenization
-
-	// Generation options
-	max_new_tokens?: number;
-	temperature?: number;
-	top_p?: number;
-	do_sample?: boolean;
-	repetition_penalty?: number;
-	stop?: string[];
-	seed?: number;
-
-	// Tool options
-	tools?: Record<string, any>;
-	tool_choice?: "auto" | "none" | "required" | { type: "tool"; toolName: string };
-	max_steps?: number;
-
-	// Streaming options
-	streamer?: any;
-	streamCallback?: (token: string) => void;
-
-	// Internal options
-	return_dict_in_generate?: boolean;
-	output_scores?: boolean;
-}
-
-export interface GenerateResult {
-	result: string;
-	past_key_values?: any;
-	tokenCount?: number;
 }
 
 /**
@@ -287,8 +172,8 @@ export function createStreamer(model: BaseModel, callback: (token: string) => vo
  */
 export async function generateWithTransformers(
 	model: BaseModel,
-	config: GenerateConfig
-): Promise<GenerateResult> {
+	config: TransformersGenerateConfig
+): Promise<TransformersGenerateResult> {
 	try {
 		// 1. Input Validation
 		if (!config.inputs && !config.messages) {
@@ -341,10 +226,17 @@ export async function generateWithTransformers(
 		}
 
 		// 5. Generate
-		const output = await model.instance.generate({
-			...inputs,
-			...generationConfig,
-		});
+		let output;
+		try {
+			output = await model.instance.generate({
+				...inputs,
+				...generationConfig,
+			});
+		} catch (error: any) {
+			throw new Error(
+				`Model execution failed: ${error}. Please try a different dtype or open an issue.`
+			);
+		}
 
 		// 6. Handle KV Cache
 		if (model.performance.supportsKVCache) {

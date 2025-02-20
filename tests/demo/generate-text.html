@@ -1,0 +1,249 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>Wandler Generate Text Test</title>
+		<style>
+			body {
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				font-family: system-ui, sans-serif;
+			}
+			.input-display {
+				margin-bottom: 2rem;
+			}
+			.input-group {
+				display: grid;
+				grid-template-columns: 1fr;
+				gap: 1rem;
+			}
+			.text-input {
+				width: 100%;
+				min-height: 100px;
+				padding: 0.75rem;
+				font-family: "Consolas", "Monaco", monospace;
+				font-size: 1rem;
+				border: 2px solid #3f51b5;
+				border-radius: 4px;
+				background: #1e1e1e;
+				color: #d4d4d4;
+				box-sizing: border-box;
+				resize: vertical;
+			}
+			.text-input:focus {
+				outline: none;
+				border-color: #7986cb;
+				box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.2);
+			}
+			.text-input:disabled {
+				opacity: 0.7;
+				cursor: not-allowed;
+			}
+			.generate-btn {
+				height: 48px;
+				padding: 0.75rem 1.5rem;
+				border-radius: 4px;
+				border: none;
+				background: #3f51b5;
+				color: white;
+				cursor: pointer;
+				font-size: 1.2rem;
+				font-weight: 500;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 0.5rem;
+				transition: all 0.2s ease;
+			}
+			.generate-btn:hover:not(:disabled) {
+				background: #283593;
+			}
+			.generate-btn:disabled {
+				background: #ccc;
+				cursor: not-allowed;
+			}
+			.status-display {
+				margin: 2rem 0;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 1rem;
+			}
+			.status-icon {
+				width: 3rem;
+				height: 3rem;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-radius: 50%;
+				font-size: 1.5rem;
+			}
+			.status-ready {
+				background: #e8eaf6;
+				color: #3f51b5;
+			}
+			.status-generating {
+				background: #fff3e0;
+				color: #f57c00;
+				animation: pulse 1.5s infinite;
+			}
+			.status-success {
+				background: #e8f5e9;
+				color: #43a047;
+			}
+			.status-error {
+				background: #ffebee;
+				color: #d32f2f;
+			}
+			@keyframes pulse {
+				0% {
+					transform: scale(1);
+				}
+				50% {
+					transform: scale(1.1);
+				}
+				100% {
+					transform: scale(1);
+				}
+			}
+			.status-text {
+				font-size: 1rem;
+				color: #666;
+			}
+			.output-display {
+				margin-top: 2rem;
+				padding: 1rem;
+				background: #1e1e1e;
+				border-radius: 4px;
+				color: #d4d4d4;
+				font-family: "Consolas", "Monaco", monospace;
+				white-space: pre-wrap;
+				display: none;
+			}
+			.output-display.visible {
+				display: block;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Wandler Generate Text Test</h1>
+
+		<div class="input-display">
+			<div class="input-group">
+				<textarea id="prompt" class="text-input" placeholder="Enter your prompt here..." rows="4">
+Write a haiku about coding.</textarea
+				>
+				<button id="generate-btn" class="generate-btn">
+					<span class="btn-text">Generate</span>
+				</button>
+			</div>
+		</div>
+
+		<div class="status-display">
+			<div id="status-icon" class="status-icon status-ready">▶️</div>
+			<div id="status" class="status-text">Ready to generate</div>
+		</div>
+
+		<div id="output" class="output-display"></div>
+
+		<script type="module">
+			import { loadModel, generateText, streamText } from "../../packages/wandler/index.ts";
+			import { env } from "@huggingface/transformers";
+
+			// Initialize test API first - this is our single source of truth
+			window.testAPI = {
+				loadModel,
+				generateText,
+				streamText,
+			};
+
+			const generateBtn = document.getElementById("generate-btn");
+			const promptInput = document.getElementById("prompt");
+			const status = document.getElementById("status");
+			const statusIcon = document.getElementById("status-icon");
+			const output = document.getElementById("output");
+
+			const testLogs = [];
+			let model = null;
+
+			function logTestEvent(event) {
+				testLogs.push({
+					timestamp: Date.now(),
+					...event,
+				});
+			}
+
+			function updateStatus(state, message) {
+				status.textContent = message;
+				statusIcon.className = `status-icon status-${state}`;
+
+				switch (state) {
+					case "ready":
+						statusIcon.textContent = "▶️";
+						break;
+					case "generating":
+						statusIcon.textContent = "⌛";
+						break;
+					case "success":
+						statusIcon.textContent = "✔️";
+						break;
+					case "error":
+						statusIcon.textContent = "❌";
+						break;
+				}
+			}
+
+			async function handleGenerate() {
+				try {
+					generateBtn.disabled = true;
+					promptInput.disabled = true;
+					output.style.display = "none";
+					updateStatus("generating", "Generating text...");
+
+					// First ensure model is loaded
+					if (!model) {
+						updateStatus("generating", "Loading model first...");
+						model = await window.testAPI.loadModel("onnx-community/Qwen2.5-Coder-0.5B-Instruct");
+						logTestEvent({ type: "model_loaded" });
+					}
+
+					console.log(model);
+
+					const prompt = promptInput.value.trim();
+					logTestEvent({ type: "generation_started", prompt });
+
+					const result = await window.testAPI.generateText({
+						model,
+						messages: [{ role: "user", content: prompt }],
+					});
+
+					output.textContent = result;
+					output.style.display = "block";
+					updateStatus("success", "Generation complete!");
+					logTestEvent({ type: "generation_complete", result });
+				} catch (error) {
+					console.error(error);
+					updateStatus("error", `Generation failed: ${error.message}`);
+					logTestEvent({ type: "error", error: error.message });
+				} finally {
+					generateBtn.disabled = false;
+					promptInput.disabled = false;
+				}
+			}
+
+			// Wire up event handlers
+			generateBtn.addEventListener("click", handleGenerate);
+			promptInput.addEventListener("keypress", e => {
+				if (e.key === "Enter" && e.shiftKey) {
+					e.preventDefault();
+					handleGenerate();
+				}
+			});
+
+			// Make test functions and logs available globally
+			window.testLogs = testLogs;
+			window.logTestEvent = logTestEvent;
+		</script>
+	</body>
+</html>

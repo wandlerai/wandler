@@ -12,9 +12,29 @@ export class TransformersProvider extends BaseProvider {
 			top_p: 1.0,
 		},
 		performance: {
-			supportsKVCache: true,
+			supportsKVCache: false,
 			groupedQueryAttention: false,
 			recommendedDtype: "q4f16",
+		},
+		deviceConfigs: {
+			webgpu: {
+				dtype: "q4f16",
+				device: "webgpu",
+				performance: {
+					supportsKVCache: false,
+					groupedQueryAttention: false,
+					recommendedDtype: "q4f16",
+				},
+			},
+			wasm: {
+				dtype: "q4",
+				device: "wasm",
+				performance: {
+					supportsKVCache: false,
+					groupedQueryAttention: false,
+					recommendedDtype: "q4",
+				},
+			},
 		},
 	};
 

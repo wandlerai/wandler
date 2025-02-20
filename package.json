@@ -21,7 +21,8 @@
 		"lint:fix": "eslint \"**/*.{ts,tsx}\" --fix",
 		"test:app": "vite tests/demo",
 		"test:e2e": "playwright test",
-		"test:e2e:debug": "playwright test --debug"
+		"test:e2e:debug": "playwright test --debug",
+		"test:e2e:generate-text": "playwright test wandler/tests/e2e/generate-text.test.ts"
 	},
 	"devDependencies": {
 		"@changesets/cli": "^2.27.1",

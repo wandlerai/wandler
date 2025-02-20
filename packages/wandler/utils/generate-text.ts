@@ -6,13 +6,16 @@
   @packageDocumentation
 */
 
-import type { NonStreamingGenerationOptions } from "@wandler/types/generation";
+import type {
+	NonStreamingGenerationOptions,
+	TransformersGenerateConfig,
+} from "@wandler/types/generation";
 import type { Message } from "@wandler/types/message";
 import type { BaseModel } from "@wandler/types/model";
 import type { WorkerMessage } from "@wandler/types/worker";
 import { prepareGenerationConfig, validateGenerationConfig } from "@wandler/utils/generation-utils";
 import { prepareMessages, validateMessages } from "@wandler/utils/message-utils";
-import { type GenerateConfig, generateWithTransformers } from "@wandler/utils/transformers";
+import { generateWithTransformers } from "@wandler/utils/transformers";
 
 // --- Public Types ---
 
@@ -70,6 +73,10 @@ import { type GenerateConfig, generateWithTransformers } from "@wandler/utils/tr
  * @see {@link NonStreamingGenerationOptions} for detailed options documentation
  */
 export async function generateText(options: NonStreamingGenerationOptions): Promise<string> {
+	if (!options.model) {
+		throw new Error(`"model" is required, make sure to load a model first using loadModel()`);
+	}
+
 	const model = options.model;
 	if (!model.capabilities.textGeneration) {
 		throw new Error(`Model ${model.id} doesn't support text generation`);
@@ -88,10 +95,10 @@ export async function generateText(options: NonStreamingGenerationOptions): Prom
 
 	// Choose implementation based on model provider
 	if (model.provider === "worker" && model.worker?.bridge) {
-		return generateWithWorker(model, messages, config, options);
+		return generateWithWorker(model, messages, config);
 	}
 
-	return generateInMainThread(model, messages, config, options);
+	return generateInMainThread(model, messages, config);
 }
 
 // --- Internal Implementation ---
@@ -103,8 +110,7 @@ export async function generateText(options: NonStreamingGenerationOptions): Prom
 async function generateWithWorker(
 	model: BaseModel,
 	messages: Message[],
-	config: GenerateConfig,
-	options: NonStreamingGenerationOptions
+	config: TransformersGenerateConfig
 ): Promise<string> {
 	const message: WorkerMessage = {
 		type: "generate",
@@ -115,25 +121,9 @@ async function generateWithWorker(
 		id: `generate-${Date.now()}`,
 	};
 
-	// Start generation with retry logic
-	let retries = 0;
-	const maxRetries = options.maxRetries ?? 2;
-
-	const tryGenerate = async (): Promise<string> => {
-		try {
-			const response = await model.worker!.bridge.sendMessage(message);
-			if (response.type === "error") throw response.payload;
-			return response.payload;
-		} catch (error) {
-			if (retries < maxRetries && !options.abortSignal?.aborted) {
-				retries++;
-				return tryGenerate();
-			}
-			throw error;
-		}
-	};
-
-	return tryGenerate();
+	const response = await model.worker!.bridge.sendMessage(message);
+	if (response.type === "error") throw response.payload;
+	return response.payload;
 }
 
 /**
@@ -143,28 +133,11 @@ async function generateWithWorker(
 async function generateInMainThread(
 	model: BaseModel,
 	messages: Message[],
-	config: GenerateConfig,
-	options: NonStreamingGenerationOptions
+	config: TransformersGenerateConfig
 ): Promise<string> {
-	// Start generation with retry logic
-	let retries = 0;
-	const maxRetries = options.maxRetries ?? 2;
-
-	const tryGenerate = async (): Promise<string> => {
-		try {
-			const { result } = await generateWithTransformers(model, {
-				messages,
-				...config,
-			});
-			return result;
-		} catch (error) {
-			if (retries < maxRetries && !options.abortSignal?.aborted) {
-				retries++;
-				return tryGenerate();
-			}
-			throw error;
-		}
-	};
-
-	return tryGenerate();
+	const { result } = await generateWithTransformers(model, {
+		messages,
+		...config,
+	});
+	return result;
 }

@@ -62,13 +62,7 @@ export class WorkerBridge {
 		}
 
 		return new Promise((resolve, reject) => {
-			const timeoutId = setTimeout(() => {
-				this.messageHandlers.delete(message.id);
-				reject(new Error("Worker operation timed out"));
-			}, 30000); // 30 second timeout
-
 			this.messageHandlers.set(message.id, (response: WorkerResponse) => {
-				clearTimeout(timeoutId);
 				if (response.type === "error") {
 					reject(response.payload);
 				} else {
@@ -79,7 +73,6 @@ export class WorkerBridge {
 			try {
 				this.worker.postMessage(message);
 			} catch (error) {
-				clearTimeout(timeoutId);
 				this.messageHandlers.delete(message.id);
 				reject(error);
 			}
@@ -99,7 +92,6 @@ export class WorkerBridge {
 			worker: this.worker,
 			bridge: this,
 			terminate: () => this.terminate(),
-			isTerminated: this.isTerminated,
 		};
 	}
 }

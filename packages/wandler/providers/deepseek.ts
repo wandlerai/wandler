@@ -14,7 +14,7 @@ export class DeepseekProvider extends BaseProvider {
 			repetition_penalty: 1.1,
 		},
 		performance: {
-			supportsKVCache: true,
+			supportsKVCache: false,
 			groupedQueryAttention: false,
 			recommendedDtype: "auto",
 		},

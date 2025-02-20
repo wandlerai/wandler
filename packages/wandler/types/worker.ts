@@ -33,6 +33,7 @@ export interface WorkerResponse {
 export interface WorkerInstance {
 	bridge: WorkerBridge;
 	worker: Worker;
+	terminate(): void;
 }
 
 export interface WorkerBridge {

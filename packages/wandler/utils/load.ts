@@ -7,10 +7,8 @@ export async function loadModel(modelPath: string, options: ModelOptions = {}): 
 	const workerManager = WorkerManager.getInstance();
 	const useWorker = options.useWorker ?? workerManager.canUseWorker();
 
-	// Get the provider's configs
+	// Get the provider
 	const provider = getProvider(modelPath);
-	const generationConfig = provider.getGenerationConfig(modelPath);
-	const performance = provider.getModelPerformance(modelPath);
 
 	if (useWorker) {
 		try {
@@ -24,11 +22,7 @@ export async function loadModel(modelPath: string, options: ModelOptions = {}): 
 				type: "load",
 				payload: {
 					modelPath,
-					options: {
-						...workerOptions,
-						generationConfig,
-						performance,
-					},
+					options: workerOptions,
 				},
 				id: `load-${Date.now()}`,
 			};

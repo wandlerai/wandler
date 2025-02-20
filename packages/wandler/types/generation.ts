@@ -26,6 +26,42 @@ export interface GenerationConfig {
 }
 
 /**
+ * Internal transformers.js generation configuration.
+ * Extends GenerationConfig with transformers-specific options.
+ *
+ * @internal
+ */
+export interface TransformersGenerateConfig extends GenerationConfig {
+	// Input options (one must be provided)
+	inputs?: any; // If already tokenized
+	messages?: Message[]; // If needs tokenization
+
+	// Tool options
+	tools?: Record<string, any>;
+	tool_choice?: "auto" | "none" | "required" | { type: "tool"; toolName: string };
+	max_steps?: number;
+
+	// Streaming options
+	streamer?: any;
+	streamCallback?: (token: string) => void;
+
+	// Internal options
+	return_dict_in_generate?: boolean;
+	output_scores?: boolean;
+}
+
+/**
+ * Result from transformers.js generation.
+ *
+ * @internal
+ */
+export interface TransformersGenerateResult {
+	result: string;
+	past_key_values?: any;
+	tokenCount?: number;
+}
+
+/**
  * Common options shared between streaming and non-streaming generation.
  *
  * @public

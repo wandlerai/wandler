@@ -1,45 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import type { ModelCapabilities, ProgressInfo } from "@wandler/types/model";
-
-// Extend window interface for our test API
-declare global {
-	interface Window {
-		testAPI: {
-			loadModel: (model: string, options?: any) => Promise<any>;
-			generateText: (options: any) => Promise<string>;
-			streamText: (options: any) => Promise<any>;
-		};
-		testLogs: Array<{
-			timestamp: number;
-			type: string;
-			info?: ProgressInfo;
-			capabilities?: ModelCapabilities;
-			error?: string;
-			model?: string;
-			options?: any;
-		}>;
-		logTestEvent: (event: any) => void;
-	}
-}
+// No need to redeclare Window interface as it's already declared in types.ts
 
 test.describe("loadModel E2E", () => {
 	test.beforeEach(async ({ page }) => {
 		// Navigate to page first
 		await page.goto("/load-model.html");
-
-		// Inject WASM device configuration because webgpu is not supported in playwright out of the box
-		await page.evaluate(() => {
-			const originalLoadModel = window.testAPI.loadModel;
-			window.testAPI.loadModel = async (model: string, options: any = {}) => {
-				window.logTestEvent({
-					type: "override_called",
-					model,
-					options,
-				});
-				return originalLoadModel(model, { ...options, device: "wasm" });
-			};
-		});
 	});
 
 	test("loads model and shows capabilities", async ({ page }) => {

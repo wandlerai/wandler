@@ -397,9 +397,6 @@ pitfalls when working with the codebase.
    export class DeepseekProvider extends BaseProvider {
      protected baseConfig = {...};
 
-     async loadModel(modelPath: string) {
-       // Provider-specific implementation
-     }
    }
    ```
 
