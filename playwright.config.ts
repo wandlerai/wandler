@@ -4,7 +4,7 @@ export default defineConfig({
 	testDir: "./tests/e2e",
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 1,
+	retries: 0,
 	workers: 2,
 	reporter: [["list"], ["html"], ["json", { outputFile: "test-results/test-results.json" }]],
 
@@ -12,8 +12,8 @@ export default defineConfig({
 	use: {
 		baseURL: "http://localhost:3001",
 		trace: "on",
-		screenshot: "on",
-		video: "on",
+		screenshot: "off",
+		video: "off",
 		/* Open DevTools automatically in debug mode */
 		launchOptions: {
 			devtools: process.env.PWDEBUG ? true : false,
