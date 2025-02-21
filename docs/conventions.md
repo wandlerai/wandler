@@ -432,6 +432,9 @@ pitfalls when working with the codebase.
    - Test utilities are shared across test files
    - Mock data is centralized
    - Common test setup/teardown is reused
+   - Worker vs main thread testing:
+     - Test `generateText` in both modes
+     - Test `streamText` only in worker mode (WASM blocks UI)
    ```typescript
    // In test-utils.ts
    export function createTestModel(options = {}) {
