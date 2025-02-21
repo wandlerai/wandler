@@ -3,7 +3,7 @@ declare global {
 	interface Window {
 		testAPI: {
 			loadModel: (model: string, options?: any) => Promise<any>;
-			generateText: (options: any) => Promise<string>;
+			generateText: (options: any) => Promise<any>;
 			streamText: (options: any) => Promise<any>;
 		};
 		testLogs: Array<{
@@ -15,7 +15,19 @@ declare global {
 			model?: string;
 			options?: any;
 			prompt?: string;
-			result?: string;
+			text?: string;
+			reasoning?: string | null;
+			sources?: string[] | null;
+			finishReason?: string;
+			usage?: {
+				promptTokens: number;
+				completionTokens: number;
+				totalTokens: number;
+			};
+			messages?: Array<{
+				role: "assistant" | "user" | "system";
+				content: string;
+			}>;
 		}>;
 		logTestEvent: (event: any) => void;
 	}

@@ -18,6 +18,32 @@
 				grid-template-columns: 1fr;
 				gap: 1rem;
 			}
+			.model-select {
+				width: 100%;
+				padding: 0.75rem;
+				font-family: system-ui, sans-serif;
+				font-size: 1rem;
+				border: 2px solid #3f51b5;
+				border-radius: 4px;
+				background: #1e1e1e;
+				color: #d4d4d4;
+				margin-bottom: 1rem;
+				cursor: pointer;
+			}
+			.model-select:focus {
+				outline: none;
+				border-color: #7986cb;
+				box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.2);
+			}
+			.model-select:disabled {
+				opacity: 0.7;
+				cursor: not-allowed;
+			}
+			.model-select option {
+				background: #1e1e1e;
+				color: #d4d4d4;
+				padding: 0.5rem;
+			}
 			.text-input {
 				width: 100%;
 				min-height: 100px;
@@ -161,6 +187,10 @@
 
 		<div class="input-display">
 			<div class="input-group">
+				<select id="model-select" class="model-select">
+					<option value="onnx-community/Qwen2.5-Coder-0.5B-Instruct">Qwen 0.5B (Coder)</option>
+					<option value="onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX">DeepSeek 1.5B</option>
+				</select>
 				<textarea id="prompt" class="text-input" placeholder="Enter your prompt here..." rows="4">
 Write a haiku about coding.</textarea
 				>
@@ -196,6 +226,7 @@ Write a haiku about coding.</textarea
 			const generateBtn = document.getElementById("generate-btn");
 			const abortBtn = document.getElementById("abort-btn");
 			const promptInput = document.getElementById("prompt");
+			const modelSelect = document.getElementById("model-select");
 			const status = document.getElementById("status");
 			const statusIcon = document.getElementById("status-icon");
 			const output = document.getElementById("output");
@@ -239,6 +270,7 @@ Write a haiku about coding.</textarea
 				try {
 					generateBtn.disabled = true;
 					promptInput.disabled = true;
+					modelSelect.disabled = true;
 					output.style.display = "none";
 
 					// Create new abort controller and reset abort button
@@ -248,10 +280,10 @@ Write a haiku about coding.</textarea
 					updateStatus("generating", "Generating text...");
 
 					// First ensure model is loaded
-					if (!model) {
+					if (!model || model.id !== modelSelect.value) {
 						updateStatus("generating", "Loading model first...");
-						model = await window.testAPI.loadModel("onnx-community/Qwen2.5-Coder-0.5B-Instruct");
-						logTestEvent({ type: "model_loaded" });
+						model = await window.testAPI.loadModel(modelSelect.value);
+						logTestEvent({ type: "model_loaded", model: modelSelect.value });
 					}
 
 					// Update status to generating now that model is ready
@@ -267,10 +299,21 @@ Write a haiku about coding.</textarea
 							abortSignal: abortController.signal,
 						});
 
-						output.textContent = result;
+						output.textContent = result.text;
 						output.style.display = "block";
+
+						console.log("[Generation Result]", result);
+
 						updateStatus("success", "Generation complete!");
-						logTestEvent({ type: "generation_complete", result });
+						logTestEvent({
+							type: "generation_complete",
+							text: result.text,
+							reasoning: result.reasoning,
+							sources: result.sources,
+							finishReason: result.finishReason,
+							usage: result.usage,
+							messages: result.messages,
+						});
 					} catch (error) {
 						console.log("[Generation Error Details]", {
 							name: error.name,
@@ -292,6 +335,7 @@ Write a haiku about coding.</textarea
 				} finally {
 					generateBtn.disabled = false;
 					promptInput.disabled = false;
+					modelSelect.disabled = false;
 					abortController = null;
 					abortBtn.disabled = false;
 				}

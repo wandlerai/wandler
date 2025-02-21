@@ -6,9 +6,8 @@
 */
 
 import type { PreTrainedModel } from "@huggingface/transformers";
-import { AutoConfig, AutoModel, AutoTokenizer, TextStreamer } from "@huggingface/transformers";
-
 import type {
+	ModelOutput,
 	TransformersGenerateConfig,
 	TransformersGenerateResult,
 } from "@wandler/types/generation";
@@ -21,6 +20,8 @@ import type {
 	ModelPerformance,
 	TransformersDeviceType,
 } from "@wandler/types/model";
+
+import { AutoConfig, AutoModel, AutoTokenizer, TextStreamer } from "@huggingface/transformers";
 
 // Keep track of past key values for models that support KV cache
 let past_key_values_cache: any = null;
@@ -188,6 +189,9 @@ export async function generateWithTransformers(
 				return_dict: true,
 			});
 
+		// Get prompt token count for usage stats
+		const promptTokenCount = inputs.input_ids.tolist()[0].length;
+
 		// Log tokenization details if streaming
 		if (config.streamCallback) {
 			console.log("[Transformers] Applied chat template:", inputs);
@@ -211,7 +215,7 @@ export async function generateWithTransformers(
 		const generationConfig = {
 			...config,
 			return_dict_in_generate: true,
-			output_scores: false,
+			output_scores: true, // Enable to get logits for finish reason
 			// Add streamer if available
 			...(streamer && { streamer }),
 			// Only add KV cache if supported
@@ -235,11 +239,11 @@ export async function generateWithTransformers(
 				throw error;
 			}
 
-			output = await model.instance.generate({
+			output = (await model.instance.generate({
 				...inputs,
 				...generationConfig,
 				abortSignal: config.abortSignal,
-			});
+			})) as ModelOutput;
 		} catch (error: any) {
 			// Check if this is an abort error
 			if (error.name === "AbortError" || error.message?.toLowerCase().includes("abort")) {
@@ -263,29 +267,87 @@ export async function generateWithTransformers(
 			throw new Error("No sequences in model output");
 		}
 
-		const result = model.tokenizer.batch_decode(sequences, {
+		const fullOutput = model.tokenizer.batch_decode(sequences, {
 			skip_special_tokens: true,
 		})[0];
 
-		// 8. Calculate token count for streaming
-		const tokenCount = config.streamCallback
-			? sequences.tolist()[0].length - inputs.input_ids.tolist()[0].length
-			: undefined;
+		// Try to use the provider's reverseTemplate method, fall back to raw output if it fails
+		let messages, reasoning, sources;
+		try {
+			const result = model.providerInstance.reverseTemplate(fullOutput);
+			messages = result.messages;
+			reasoning = result.reasoning;
+			sources = result.sources;
+		} catch (error: any) {
+			console.warn(
+				`[Transformers] Provider ${model.provider} failed to parse messages:`,
+				error?.message || "Unknown error"
+			);
+			// Fall back to raw output
+			messages = [{ role: "assistant" as const, content: fullOutput }];
+			reasoning = null;
+			sources = null;
+		}
+
+		// Get the assistant's response (last message)
+		const text = messages[messages.length - 1]?.content || "";
+
+		// 8. Calculate token counts and determine finish reason
+		const sequenceArray = Array.isArray(sequences) ? sequences : sequences.tolist()[0];
+		const completionTokenCount = sequenceArray.length - promptTokenCount;
+		const totalTokens = promptTokenCount + completionTokenCount;
+
+		// Determine finish reason based on output
+		let finishReason = "length";
+
+		const fullOutput2 = model.tokenizer.batch_decode(sequences, {
+			skip_special_tokens: false,
+		})[0];
+
+		console.log(
+			"[Transformers] Sequence array:",
+			Number(sequenceArray[sequenceArray.length - 1]),
+			model.tokenizer.eos_token_id
+		);
+		console.log("[Transformers] Full output:", fullOutput2);
+
+		if (config.abortSignal?.aborted) {
+			finishReason = "abort";
+		} else if (Number(sequenceArray[sequenceArray.length - 1]) === model.tokenizer.eos_token_id) {
+			finishReason = "stop";
+		} else if (completionTokenCount >= (config.max_new_tokens || 1024)) {
+			finishReason = "length";
+		}
 
 		// Log completion details if streaming
 		if (config.streamCallback) {
 			console.log("[Transformers] Generation complete, raw output:", output);
-			console.log("[Transformers] Total tokens generated:", tokenCount);
-			console.log("[Transformers] Sequences shape:", sequences.shape);
-			console.log("[Transformers] Final sequence tokens:", sequences.tolist());
+			console.log("[Transformers] Total tokens generated:", completionTokenCount);
+			console.log(
+				"[Transformers] Sequences shape:",
+				Array.isArray(sequences) ? sequences.length : sequences.shape
+			);
+			console.log("[Transformers] Final sequence tokens:", sequenceArray);
 		}
 
+		console.log("[Transformers] Result:", text);
+		console.log("[Transformers] Messages:", messages);
+
 		return {
-			result,
+			text,
 			past_key_values: model.performance.supportsKVCache ? output.past_key_values : undefined,
-			tokenCount,
-		};
-	} catch (error) {
+			tokenCount: completionTokenCount,
+			reasoning: reasoning ?? null,
+			sources: sources ?? null,
+			finishReason,
+			usage: {
+				promptTokens: promptTokenCount,
+				completionTokens: completionTokenCount,
+				totalTokens,
+			},
+			messages: messages ?? [{ role: "assistant", content: text }],
+		} satisfies TransformersGenerateResult;
+	} catch (error: any) {
 		// Reset KV cache on error if it was being used
 		if (model.performance.supportsKVCache) {
 			past_key_values_cache = null;

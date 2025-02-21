@@ -1,5 +1,6 @@
 import type { BaseModel, ModelConfig, ModelOptions, ModelPerformance } from "@wandler/types/model";
-import type { ResolvedConfig } from "@wandler/types/provider";
+import type { ResolvedConfig, ReverseTemplateResult } from "@wandler/types/provider";
+
 import { selectBestDevice } from "@wandler/utils/device-utils";
 import { detectCapabilities, loadModelInstance, loadTokenizer } from "@wandler/utils/transformers";
 
@@ -9,6 +10,16 @@ export abstract class BaseProvider {
 
 	// Model-specific configurations that override the base config
 	protected abstract modelConfigs: Record<string, Partial<ModelConfig>>;
+
+	/**
+	 * Reverses the chat template, extracting structured messages from formatted output.
+	 * Each provider must override this to handle their specific format.
+	 */
+	public reverseTemplate(formattedOutput: string): ReverseTemplateResult {
+		throw new Error(
+			`${this.constructor.name} does not implement reverseTemplate(). Each provider must implement its own message parsing logic.`
+		);
+	}
 
 	protected getConfigForModel(modelPath: string): ModelConfig {
 		const modelConfig = this.modelConfigs[modelPath] || {};
@@ -128,6 +139,7 @@ export abstract class BaseProvider {
 		return {
 			id: modelPath,
 			provider: this.constructor.name.toLowerCase().replace("provider", ""),
+			providerInstance: this,
 			tokenizer,
 			instance,
 			capabilities: config.capabilities,

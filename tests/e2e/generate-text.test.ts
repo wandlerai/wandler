@@ -30,7 +30,56 @@ test.describe("generateText E2E", () => {
 
 		// Get the generation result
 		const generationLog = logs.find(log => log.type === "generation_complete");
-		expect(generationLog?.result).toBeTruthy();
+		expect(generationLog).toBeTruthy();
+		if (!generationLog) return; // TypeScript guard
+
+		// Verify all required fields are present and have correct types
+		expect(generationLog.text).toBeDefined();
+		expect(typeof generationLog.text).toBe("string");
+		expect(generationLog.text?.length).toBeGreaterThan(0);
+
+		// Verify messages array
+		expect(generationLog.messages).toBeDefined();
+		expect(Array.isArray(generationLog.messages)).toBe(true);
+		expect(generationLog.messages?.length).toBeGreaterThan(0);
+
+		const firstMessage = generationLog.messages?.[0];
+		expect(firstMessage).toBeDefined();
+		if (firstMessage) {
+			expect(firstMessage).toHaveProperty("role");
+			expect(firstMessage).toHaveProperty("content");
+			expect(typeof firstMessage.content).toBe("string");
+			expect(["assistant", "user", "system"]).toContain(firstMessage.role);
+		}
+
+		// Verify finish reason
+		expect(generationLog.finishReason).toBeDefined();
+		expect(typeof generationLog.finishReason).toBe("string");
+		expect(["stop", "length", "abort"]).toContain(generationLog.finishReason);
+
+		// Verify usage statistics
+		expect(generationLog.usage).toBeDefined();
+		if (generationLog.usage) {
+			expect(generationLog.usage).toEqual({
+				promptTokens: expect.any(Number),
+				completionTokens: expect.any(Number),
+				totalTokens: expect.any(Number),
+			});
+			expect(generationLog.usage.totalTokens).toBe(
+				generationLog.usage.promptTokens + generationLog.usage.completionTokens
+			);
+		}
+
+		// Verify optional fields have correct types when present
+		if (generationLog.reasoning !== null && generationLog.reasoning !== undefined) {
+			expect(typeof generationLog.reasoning).toBe("string");
+		}
+		if (generationLog.sources !== null && generationLog.sources !== undefined) {
+			expect(Array.isArray(generationLog.sources)).toBe(true);
+			generationLog.sources.forEach(source => {
+				expect(typeof source).toBe("string");
+			});
+		}
 	});
 
 	test("can abort generation", async ({ page }) => {
@@ -104,10 +153,40 @@ test.describe("generateText E2E", () => {
 
 		// Get the generation result
 		const generationLog = logs.find(log => log.type === "generation_complete");
-		expect(generationLog?.result).toBeTruthy();
+		expect(generationLog).toBeTruthy();
+		if (!generationLog) return; // TypeScript guard
+
+		// Verify all required fields are present and have correct types
+		expect(generationLog.text).toBeDefined();
+		expect(typeof generationLog.text).toBe("string");
+		expect(generationLog.text?.length).toBeGreaterThan(0);
+
+		// Verify messages array
+		expect(generationLog.messages).toBeDefined();
+		expect(Array.isArray(generationLog.messages)).toBe(true);
+		expect(generationLog.messages?.length).toBeGreaterThan(0);
+
+		// Verify finish reason
+		expect(generationLog.finishReason).toBeDefined();
+		expect(typeof generationLog.finishReason).toBe("string");
+		expect(["stop", "length", "abort"]).toContain(generationLog.finishReason);
+
+		// Verify usage statistics
+		expect(generationLog.usage).toBeDefined();
+		if (generationLog.usage) {
+			expect(generationLog.usage).toEqual({
+				promptTokens: expect.any(Number),
+				completionTokens: expect.any(Number),
+				totalTokens: expect.any(Number),
+			});
+		}
+
+		// Verify optional fields
+		expect(generationLog.reasoning).toBeNull();
+		expect(generationLog.sources).toBeNull();
 	});
 
-	test("fails with incorrect dtype", async ({ page }) => {
+	test("fails with incompatible dtype", async ({ page }) => {
 		// Override loadModel to force q4f16 dtype
 		await page.evaluate(() => {
 			const originalLoadModel = window.testAPI.loadModel;

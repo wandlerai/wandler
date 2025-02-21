@@ -68,7 +68,7 @@ test.describe("streamText E2E", () => {
 		await expect(page.getByText("Streaming text...")).toBeVisible();
 	});
 
-	test("fails with incorrect dtype", async ({ page }) => {
+	test("fails with incompatible dtype", async ({ page }) => {
 		// Override loadModel to force q4f16 dtype
 		await page.evaluate(() => {
 			const originalLoadModel = window.testAPI.loadModel;

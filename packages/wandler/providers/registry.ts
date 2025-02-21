@@ -1,24 +1,34 @@
-import { BaseProvider } from "@wandler/providers/base";
+import type { BaseProvider } from "@wandler/providers/base";
+
 import { DeepseekProvider } from "@wandler/providers/deepseek";
+import { QwenProvider } from "@wandler/providers/qwen";
 import { TransformersProvider } from "@wandler/providers/transformers";
 
 export interface ProviderEntry {
 	pattern: RegExp;
-	provider: BaseProvider;
+	Provider: new () => BaseProvider;
 }
 
 export const PROVIDER_REGISTRY: ProviderEntry[] = [
 	{
+		pattern: /^onnx-community\/qwen/i,
+		Provider: QwenProvider,
+	},
+	{
+		pattern: /^qwen\//i,
+		Provider: QwenProvider,
+	},
+	{
 		pattern: /^onnx-community\/deepseek/i,
-		provider: new DeepseekProvider(),
+		Provider: DeepseekProvider,
 	},
 	{
 		pattern: /^deepseek\//,
-		provider: new DeepseekProvider(),
+		Provider: DeepseekProvider,
 	},
 	{
 		pattern: /^stabilityai\//,
-		provider: new TransformersProvider(),
+		Provider: TransformersProvider,
 	},
 ];
 
@@ -27,5 +37,5 @@ export const PROVIDER_REGISTRY: ProviderEntry[] = [
  */
 export function getProvider(modelPath: string): BaseProvider {
 	const entry = PROVIDER_REGISTRY.find(({ pattern }) => pattern.test(modelPath));
-	return entry?.provider || new TransformersProvider();
+	return entry ? new entry.Provider() : new TransformersProvider();
 }

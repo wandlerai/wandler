@@ -1,7 +1,11 @@
 // Import this to avoid circular dependency
-import type { PretrainedConfig } from "@huggingface/transformers";
-
-import type { GenerationConfig } from "./generation";
+import type {
+	PretrainedConfig,
+	PreTrainedModel,
+	PreTrainedTokenizer,
+} from "@huggingface/transformers";
+import type { BaseProvider } from "@wandler/providers/base";
+import type { WorkerInstance } from "@wandler/types/worker";
 
 export type ModelDtype =
 	| "q4f16"
@@ -92,20 +96,28 @@ export interface ModelConfig {
 }
 
 export interface BaseModel {
+	/** Model identifier (usually HF repo path) */
 	id: string;
+	/** Provider identifier */
 	provider: string;
+	/** Provider instance that loaded this model */
+	providerInstance: BaseProvider;
+	/** Tokenizer instance */
+	tokenizer: PreTrainedTokenizer;
+	/** Model instance */
+	instance: PreTrainedModel;
+	/** Model capabilities */
 	capabilities: ModelCapabilities;
+	/** Performance settings */
 	performance: ModelPerformance;
+	/** Raw model config */
 	config: Record<string, any>;
-	tokenizer?: any;
-	processor?: any;
-	instance?: any;
+	/** Generation config */
+	generationConfig: Record<string, any>;
+	/** Model options used during loading */
 	options: ModelOptions;
-	generationConfig?: GenerationConfig;
-	dispose?: () => void;
-	worker?: {
-		bridge: any;
-	};
+	/** Optional worker instance */
+	worker?: WorkerInstance;
 }
 
 export interface ProgressInfo {

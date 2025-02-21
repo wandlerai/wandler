@@ -1,5 +1,7 @@
-import { BaseProvider } from "@wandler/providers/base";
 import type { ModelConfig } from "@wandler/types/model";
+import type { ReverseTemplateResult } from "@wandler/types/provider";
+
+import { BaseProvider } from "@wandler/providers/base";
 
 export class DeepseekProvider extends BaseProvider {
 	// Base configuration for all DeepSeek models
@@ -35,4 +37,55 @@ export class DeepseekProvider extends BaseProvider {
 			},
 		},
 	};
+
+	/**
+	 * DeepSeek uses a specific chat template format:
+	 * <｜tool▁outputs▁begin｜>{user message}<｜tool▁outputs▁end｜>{assistant message}
+	 * It may also include <think> tags for reasoning
+	 */
+	public override reverseTemplate(formattedOutput: string): ReverseTemplateResult {
+		const messages = [];
+		let reasoning: string | null = null;
+
+		// Split by role markers
+		const parts = formattedOutput.split(/<｜(User|Assistant)｜>/);
+
+		// Remove empty first element if exists
+		if (parts[0] === "") {
+			parts.shift();
+		}
+
+		// Process pairs of role and content
+		for (let i = 0; i < parts.length; i += 2) {
+			const role = parts[i].toLowerCase();
+			let content = parts[i + 1] || "";
+
+			// Extract think content if present
+			const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+			if (thinkMatch && role === "assistant") {
+				reasoning = thinkMatch[1].trim();
+				// Remove the think block from content
+				content = content.replace(/<think>[\s\S]*?<\/think>/, "");
+			}
+
+			// Clean up content
+			content = content
+				.replace(/<｜(User|Assistant)｜>/g, "") // Remove any nested markers
+				.replace(/\*\*/g, "") // Remove bold markers
+				.trim();
+
+			if (content) {
+				messages.push({
+					role: role as "user" | "assistant",
+					content,
+				});
+			}
+		}
+
+		return {
+			messages,
+			reasoning,
+			sources: null, // DeepSeek doesn't have source citations
+		};
+	}
 }

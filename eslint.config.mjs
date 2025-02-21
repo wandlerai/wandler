@@ -41,6 +41,8 @@ export default [
 				"error",
 				{
 					groups: [
+						// Type imports
+						["^.*\\u0000$", "^@?\\w.*\\u0000$", "^@wandler.*\\u0000$"],
 						// External packages
 						["^@?\\w"],
 						// Internal packages (@wandler/*)

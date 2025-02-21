@@ -1,4 +1,5 @@
-import type { ModelCapabilities, ModelOptions, ModelPerformance } from "./model";
+import type { Message } from "@wandler/types/message";
+import type { ModelCapabilities, ModelOptions, ModelPerformance } from "@wandler/types/model";
 
 /**
  * Resolved configuration after merging all settings following the priority chain:
@@ -14,4 +15,10 @@ export interface ResolvedConfig {
 	performance: ModelPerformance;
 	capabilities: ModelCapabilities;
 	modelConfig: Record<string, any>;
+}
+
+export interface ReverseTemplateResult {
+	messages: Message[];
+	reasoning?: string | null;
+	sources?: string[] | null;
 }

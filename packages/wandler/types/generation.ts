@@ -1,6 +1,7 @@
 import type { Message } from "./message";
 import type { BaseModel } from "./model";
 import type { ToolSet } from "./stream";
+import type { Tensor } from "@huggingface/transformers";
 
 /**
  * Core generation configuration shared by all generation methods.
@@ -54,13 +55,41 @@ export interface TransformersGenerateConfig extends GenerationConfig {
 }
 
 /**
+ * Extended output from text generation including metadata.
+ *
+ * @public
+ */
+export interface GenerationResult {
+	/** The generated text */
+	text: string;
+	/** Optional internal reasoning provided by the model */
+	reasoning: string | null;
+	/** Optional sources that contributed to the generation */
+	sources: string[] | null;
+	/** Optional explanation of why generation stopped */
+	finishReason: string | null;
+	/** Optional metadata about token usage */
+	usage: {
+		/** Number of tokens in the prompt */
+		promptTokens?: number;
+		/** Number of tokens generated */
+		completionTokens?: number;
+		/** Total tokens used */
+		totalTokens?: number;
+	} | null;
+	/** Optional parsed messages from the generation output */
+	messages?: Message[] | null;
+}
+
+/**
  * Result from transformers.js generation.
  *
  * @internal
  */
-export interface TransformersGenerateResult {
-	result: string;
+export interface TransformersGenerateResult extends GenerationResult {
+	/** Optional key-value cache for efficient generation */
 	past_key_values?: any;
+	/** Optional count of generated tokens */
 	tokenCount?: number;
 }
 
@@ -126,3 +155,9 @@ export interface StreamingGenerationOptions extends BaseGenerationOptions, ToolO
  * @public
  */
 export interface NonStreamingGenerationOptions extends BaseGenerationOptions {}
+
+export interface ModelOutput {
+	sequences: Tensor & { tolist: () => number[][]; shape: number[] };
+	scores?: number[][];
+	past_key_values?: any;
+}

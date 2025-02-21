@@ -1,6 +1,7 @@
-import { getProvider } from "@wandler/providers/registry";
 import type { BaseModel } from "@wandler/types/model";
 import type { WorkerMessage, WorkerResponse } from "@wandler/types/worker";
+
+import { getProvider } from "@wandler/providers/registry";
 import { generateWithTransformers } from "@wandler/utils/transformers";
 
 let model: BaseModel | null = null;
@@ -116,14 +117,14 @@ async function handleGenerateText(
 
 	try {
 		// Use the core transformer layer
-		const { result, tokenCount } = await generateWithTransformers(model, {
+		const result = await generateWithTransformers(model, {
 			messages,
 			...options,
 			abortSignal: controller.signal,
 		});
 
 		console.log("[Worker] Generation complete, result:", result);
-		return { result, tokenCount };
+		return result;
 	} catch (error: any) {
 		console.error("[Worker] Generation error:", error);
 
@@ -190,14 +191,25 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 				if (!payload.messages) {
 					throw new Error("Messages are required");
 				}
-				const { result } = await handleGenerateText(payload.messages, {
+				const result = await handleGenerateText(payload.messages, {
 					max_new_tokens: payload.max_new_tokens,
 					do_sample: payload.do_sample,
 					temperature: payload.temperature,
 					top_p: payload.top_p,
 					repetition_penalty: payload.repetition_penalty,
 				});
-				sendResponse({ type: "generated", payload: result, id });
+				sendResponse({
+					type: "generated",
+					payload: {
+						text: result.text,
+						reasoning: result.reasoning ?? null,
+						sources: result.sources ?? null,
+						finishReason: result.finishReason ?? null,
+						usage: result.usage ?? null,
+						messages: result.messages ?? [{ role: "assistant", content: result.text }],
+					},
+					id,
+				});
 				break;
 			}
 
@@ -221,7 +233,17 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 					seed: payload.seed,
 				});
 				// Send completion message
-				sendResponse({ type: "generated", payload: null, id });
+				sendResponse({
+					type: "generated",
+					payload: {
+						text: null,
+						reasoning: null,
+						sources: null,
+						finishReason: null,
+						usage: null,
+					},
+					id,
+				});
 				break;
 			}
 
