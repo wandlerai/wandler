@@ -45,6 +45,7 @@ export interface TransformersGenerateConfig extends GenerationConfig {
 	// Streaming options
 	streamer?: any;
 	streamCallback?: (token: string) => void;
+	streamParts?: TextStreamPart[];
 
 	// Abort options
 	abortSignal?: AbortSignal;
@@ -82,6 +83,55 @@ export interface GenerationResult {
 }
 
 /**
+ * Represents a part of the text stream with additional metadata.
+ *
+ * @public
+ */
+export interface TextStreamPart {
+	/** The type of stream part */
+	type: StreamPartType;
+	/** The text delta for text or reasoning updates */
+	textDelta?: string;
+	/** Optional source information */
+	source?: Source;
+}
+
+/**
+ * Types of stream parts that can be emitted.
+ *
+ * @public
+ */
+export type StreamPartType = "text-delta" | "reasoning" | "source";
+
+/**
+ * Source information for generated content.
+ *
+ * @public
+ */
+export interface Source {
+	/** Source identifier */
+	id: string;
+	/** Source content */
+	content: string;
+	/** Optional metadata */
+	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Result from streamText including both plain text and structured streams.
+ *
+ * @public
+ */
+export interface StreamTextResult {
+	/** Traditional text stream */
+	textStream: ReadableStream<string>;
+	/** Enhanced stream with structured events */
+	fullStream: ReadableStream<TextStreamPart> & AsyncIterable<TextStreamPart>;
+	/** Promise that resolves to the final generation result */
+	result: Promise<GenerationResult>;
+}
+
+/**
  * Result from transformers.js generation.
  *
  * @internal
@@ -91,6 +141,8 @@ export interface TransformersGenerateResult extends GenerationResult {
 	past_key_values?: any;
 	/** Optional count of generated tokens */
 	tokenCount?: number;
+	/** Optional stream parts for enhanced output */
+	streamParts?: TextStreamPart[];
 }
 
 /**
@@ -140,12 +192,27 @@ export interface ToolOptions {
 }
 
 /**
+ * A chunk of streamed text or reasoning.
+ *
+ * @public
+ */
+export interface StreamChunk {
+	/** The type of chunk */
+	type: "text-delta" | "reasoning";
+	/** The text content */
+	text: string;
+}
+
+/**
  * Options specific to streaming text generation.
  * Extends base options with streaming-specific features like tools.
  *
  * @public
  */
-export interface StreamingGenerationOptions extends BaseGenerationOptions, ToolOptions {}
+export interface StreamingGenerationOptions extends BaseGenerationOptions, ToolOptions {
+	/** Optional callback for handling stream chunks */
+	onChunk?: (chunk: StreamChunk) => void;
+}
 
 /**
  * Options for non-streaming text generation.

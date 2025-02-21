@@ -10,37 +10,74 @@
 */
 
 import type {
+	GenerationResult,
 	StreamingGenerationOptions,
+	StreamTextResult,
+	TextStreamPart,
 	TransformersGenerateConfig,
 } from "@wandler/types/generation";
 import type { Message } from "@wandler/types/message";
 import type { BaseModel } from "@wandler/types/model";
-import type { StreamResult } from "@wandler/types/stream";
 import type { WorkerMessage } from "@wandler/types/worker";
+
 import { prepareGenerationConfig, validateGenerationConfig } from "@wandler/utils/generation-utils";
 import { prepareMessages, validateMessages } from "@wandler/utils/message-utils";
 import { generateWithTransformers } from "@wandler/utils/transformers";
 
+function createAsyncIterableStream<T>(
+	stream: ReadableStream<T>
+): ReadableStream<T> & AsyncIterable<T> {
+	return {
+		...stream,
+		[Symbol.asyncIterator]() {
+			const reader = stream.getReader();
+			return {
+				async next(): Promise<IteratorResult<T>> {
+					try {
+						const { done, value } = await reader.read();
+						return { done, value } as IteratorResult<T>;
+					} catch (e) {
+						reader.releaseLock();
+						throw e;
+					}
+				},
+				async return(): Promise<IteratorResult<T>> {
+					reader.releaseLock();
+					return { done: true, value: undefined };
+				},
+			};
+		},
+	} as ReadableStream<T> & AsyncIterable<T>;
+}
+
 /**
- * Streams text generation from a model, returning chunks of text as they are generated.
+ * Streams text generation from a model, returning both text chunks and structured events.
  * @example
  * ```ts
  * const model = await loadModel("gpt2");
- * const { stream, cancel } = await streamText({
+ * const { textStream, fullStream } = await streamText({
  *   model,
  *   messages: [{ role: "user", content: "Hello!" }]
  * });
  *
- * for await (const chunk of stream) {
- *   console.log(chunk); // Prints each generated word/token
+ * // Use text stream for simple text chunks
+ * for await (const chunk of textStream) {
+ *   console.log("Text:", chunk);
+ * }
+ *
+ * // Use full stream for structured events
+ * for await (const event of fullStream) {
+ *   if (event.type === "text-delta") {
+ *     console.log("Text:", event.textDelta);
+ *   } else if (event.type === "reasoning") {
+ *     console.log("Reasoning:", event.textDelta);
+ *   } else if (event.type === "source") {
+ *     console.log("Source:", event.source);
+ *   }
  * }
  * ```
- * @param options - Configuration options for text generation
- * @returns A StreamResult containing the text stream and cancel function
  */
-export async function streamText(
-	options: StreamingGenerationOptions
-): Promise<StreamResult<string>> {
+export async function streamText(options: StreamingGenerationOptions): Promise<StreamTextResult> {
 	const model = options.model;
 	if (!model.capabilities?.textGeneration) {
 		throw new Error(`Model ${model.id} doesn't support text generation`);
@@ -65,14 +102,24 @@ async function streamWithWorker(
 	messages: Message[],
 	config: TransformersGenerateConfig,
 	options: StreamingGenerationOptions
-): Promise<StreamResult<string>> {
-	let controller!: ReadableStreamDefaultController<string>;
+): Promise<StreamTextResult> {
+	let textController!: ReadableStreamDefaultController<string>;
+	let fullController!: ReadableStreamDefaultController<TextStreamPart>;
+	let resultResolve!: (result: GenerationResult) => void;
+	let resultReject!: (error: Error) => void;
+
+	// Create result promise
+	const resultPromise = new Promise<GenerationResult>((resolve, reject) => {
+		resultResolve = resolve;
+		resultReject = reject;
+	});
+
+	// Create text stream
 	const textStream = new ReadableStream<string>({
 		start(c) {
-			controller = c;
+			textController = c;
 		},
 		cancel() {
-			// Signal cancellation through AbortController if provided
 			if (options.abortSignal instanceof AbortSignal) {
 				const controller = new AbortController();
 				controller.abort();
@@ -81,7 +128,25 @@ async function streamWithWorker(
 				throw error;
 			}
 		},
-	}) as StreamResult<string>["textStream"];
+	});
+
+	// Create full stream
+	const fullStreamBase = new ReadableStream<TextStreamPart>({
+		start(c) {
+			fullController = c;
+		},
+		cancel() {
+			if (options.abortSignal instanceof AbortSignal) {
+				const controller = new AbortController();
+				controller.abort();
+				const error = new Error("Request aborted by user");
+				error.name = "AbortError";
+				throw error;
+			}
+		},
+	});
+
+	const fullStream = createAsyncIterableStream(fullStreamBase);
 
 	const message: WorkerMessage = {
 		type: "stream",
@@ -98,49 +163,61 @@ async function streamWithWorker(
 		if (options.abortSignal?.aborted) {
 			const error = new Error("Request aborted by user");
 			error.name = "AbortError";
-			controller.error(error);
+			textController.error(error);
+			fullController.error(error);
+			resultReject(error);
 			return;
 		}
 
 		if (e.data.type === "stream") {
-			controller.enqueue(e.data.payload);
+			const part = e.data.payload as TextStreamPart;
+
+			// Always send to full stream first
+			fullController.enqueue(part);
+
+			// Handle different types of stream parts
+			if (part.type === "text-delta" && part.textDelta) {
+				// Send to text stream
+				textController.enqueue(part.textDelta);
+				// Call onChunk if provided
+				if (options.onChunk) {
+					options.onChunk({
+						type: "text-delta",
+						text: part.textDelta,
+					});
+				}
+			} else if (part.type === "reasoning" && part.textDelta) {
+				// Call onChunk if provided
+				if (options.onChunk) {
+					options.onChunk({
+						type: "reasoning",
+						text: part.textDelta,
+					});
+				}
+			}
 		} else if (e.data.type === "generated") {
-			controller.close();
+			textController.close();
+			fullController.close();
+			resultResolve(e.data.payload);
 		} else if (e.data.type === "error") {
-			controller.error(e.data.payload);
+			const error = e.data.payload instanceof Error ? e.data.payload : new Error(e.data.payload);
+			textController.error(error);
+			fullController.error(error);
+			resultReject(error);
 		}
 	});
 
 	// Start streaming
-	const responsePromise = bridge
-		.sendMessage(message)
-		.then((response: { type: string; payload: any }) => {
-			if (response.type === "error") throw response.payload;
-			return response.payload;
-		});
+	bridge.sendMessage(message).catch(error => {
+		textController.error(error);
+		fullController.error(error);
+		resultReject(error);
+	});
 
 	return {
 		textStream,
-		[Symbol.asyncIterator]() {
-			const reader = textStream.getReader();
-			return {
-				async next() {
-					try {
-						const { done, value } = await reader.read();
-						if (done) return { done: true, value: undefined };
-						return { done: false, value };
-					} catch (e) {
-						reader.releaseLock();
-						throw e;
-					}
-				},
-				async return() {
-					reader.releaseLock();
-					return { done: true, value: undefined };
-				},
-			};
-		},
-		response: responsePromise,
+		fullStream,
+		result: resultPromise,
 	};
 }
 
@@ -153,14 +230,24 @@ async function streamInMainThread(
 	messages: Message[],
 	config: TransformersGenerateConfig,
 	options: StreamingGenerationOptions
-): Promise<StreamResult<string>> {
-	let controller!: ReadableStreamDefaultController<string>;
+): Promise<StreamTextResult> {
+	let textController!: ReadableStreamDefaultController<string>;
+	let fullController!: ReadableStreamDefaultController<TextStreamPart>;
+	let resultResolve!: (result: GenerationResult) => void;
+	let resultReject!: (error: Error) => void;
+
+	// Create result promise
+	const resultPromise = new Promise<GenerationResult>((resolve, reject) => {
+		resultResolve = resolve;
+		resultReject = reject;
+	});
+
+	// Create text stream
 	const textStream = new ReadableStream<string>({
 		start(c) {
-			controller = c;
+			textController = c;
 		},
 		cancel() {
-			// Signal cancellation through AbortController if provided
 			if (options.abortSignal instanceof AbortSignal) {
 				const controller = new AbortController();
 				controller.abort();
@@ -169,41 +256,61 @@ async function streamInMainThread(
 				throw error;
 			}
 		},
-	}) as StreamResult<string>["textStream"];
+	});
+
+	// Create full stream
+	const fullStreamBase = new ReadableStream<TextStreamPart>({
+		start(c) {
+			fullController = c;
+		},
+		cancel() {
+			if (options.abortSignal instanceof AbortSignal) {
+				const controller = new AbortController();
+				controller.abort();
+				const error = new Error("Request aborted by user");
+				error.name = "AbortError";
+				throw error;
+			}
+		},
+	});
+
+	const fullStream = createAsyncIterableStream(fullStreamBase);
 
 	// Start generation
-	const generatePromise = generateWithTransformers(model, {
+	generateWithTransformers(model, {
 		messages,
 		...config,
 		streamCallback: (token: string) => {
-			controller.enqueue(token);
+			const part: TextStreamPart = {
+				type: "text-delta",
+				textDelta: token,
+			};
+			textController.enqueue(token);
+			fullController.enqueue(part);
 		},
-	}).then(({ result }) => {
-		controller.close();
-		return result;
-	});
+	})
+		.then(result => {
+			// Send any additional parts at the end
+			if (result.streamParts) {
+				for (const part of result.streamParts) {
+					if (part.type !== "text-delta") {
+						fullController.enqueue(part);
+					}
+				}
+			}
+			textController.close();
+			fullController.close();
+			resultResolve(result);
+		})
+		.catch(error => {
+			textController.error(error);
+			fullController.error(error);
+			resultReject(error);
+		});
 
 	return {
 		textStream,
-		[Symbol.asyncIterator]() {
-			const reader = textStream.getReader();
-			return {
-				async next() {
-					try {
-						const { done, value } = await reader.read();
-						if (done) return { done: true, value: undefined };
-						return { done: false, value };
-					} catch (e) {
-						reader.releaseLock();
-						throw e;
-					}
-				},
-				async return() {
-					reader.releaseLock();
-					return { done: true, value: undefined };
-				},
-			};
-		},
-		response: generatePromise,
+		fullStream,
+		result: resultPromise,
 	};
 }

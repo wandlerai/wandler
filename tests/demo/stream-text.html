@@ -18,6 +18,32 @@
 				grid-template-columns: 1fr;
 				gap: 1rem;
 			}
+			.model-select {
+				width: 100%;
+				padding: 0.75rem;
+				font-family: system-ui, sans-serif;
+				font-size: 1rem;
+				border: 2px solid #3f51b5;
+				border-radius: 4px;
+				background: #1e1e1e;
+				color: #d4d4d4;
+				margin-bottom: 1rem;
+				cursor: pointer;
+			}
+			.model-select:focus {
+				outline: none;
+				border-color: #7986cb;
+				box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.2);
+			}
+			.model-select:disabled {
+				opacity: 0.7;
+				cursor: not-allowed;
+			}
+			.model-select option {
+				background: #1e1e1e;
+				color: #d4d4d4;
+				padding: 0.5rem;
+			}
 			.text-input {
 				width: 100%;
 				min-height: 100px;
@@ -133,7 +159,6 @@
 				background: #d4d4d4;
 				vertical-align: middle;
 				animation: blink 1s step-end infinite;
-				position: absolute;
 			}
 			@keyframes blink {
 				50% {
@@ -173,8 +198,38 @@
 			}
 
 			#stream-content {
-				display: inline;
 				white-space: pre-wrap;
+				word-wrap: break-word;
+				overflow-wrap: break-word;
+				display: block;
+			}
+
+			.reasoning-block {
+				margin-top: 1rem;
+				padding: 1rem;
+				background: #2d2d2d;
+				border-left: 4px solid #7986cb;
+				border-radius: 0 4px 4px 0;
+			}
+
+			.reasoning-title {
+				color: #7986cb;
+				font-weight: bold;
+				margin-bottom: 0.5rem;
+			}
+
+			.source-block {
+				margin-top: 1rem;
+				padding: 1rem;
+				background: #2d2d2d;
+				border-left: 4px solid #81c784;
+				border-radius: 0 4px 4px 0;
+			}
+
+			.source-title {
+				color: #81c784;
+				font-weight: bold;
+				margin-bottom: 0.5rem;
 			}
 		</style>
 	</head>
@@ -183,6 +238,10 @@
 
 		<div class="input-display">
 			<div class="input-group">
+				<select id="model-select" class="model-select">
+					<option value="onnx-community/Qwen2.5-Coder-0.5B-Instruct">Qwen 0.5B (Coder)</option>
+					<option value="onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX">DeepSeek 1.5B</option>
+				</select>
 				<textarea id="prompt" class="text-input" placeholder="Enter your prompt here..." rows="4">
 Write a detailed essay about the history of coding.</textarea
 				>
@@ -202,7 +261,17 @@ Write a detailed essay about the history of coding.</textarea
 			<div id="status" class="status-text">Ready to stream</div>
 		</div>
 
-		<div id="output" class="output-display"></div>
+		<div id="output" class="output-display">
+			<div id="reasoning-content" class="reasoning-block" style="display: none">
+				<div class="reasoning-title">Reasoning</div>
+				<div id="reasoning-text"></div>
+			</div>
+			<div id="stream-content"></div>
+			<div id="source-content" class="source-block" style="display: none">
+				<div class="source-title">Sources</div>
+				<div id="source-text"></div>
+			</div>
+		</div>
 
 		<script type="module">
 			import { loadModel, generateText, streamText } from "../../packages/wandler/index.ts";
@@ -217,11 +286,21 @@ Write a detailed essay about the history of coding.</textarea
 			const streamBtn = document.getElementById("stream-btn");
 			const abortBtn = document.getElementById("abort-btn");
 			const promptInput = document.getElementById("prompt");
+			const modelSelect = document.getElementById("model-select");
 			const status = document.getElementById("status");
 			const statusIcon = document.getElementById("status-icon");
 			const output = document.getElementById("output");
-			const cursor = document.createElement("span");
-			cursor.className = "cursor";
+			const streamContent = document.getElementById("stream-content");
+			const reasoningContent = document.getElementById("reasoning-content");
+			const reasoningText = document.getElementById("reasoning-text");
+			const sourceContent = document.getElementById("source-content");
+			const sourceText = document.getElementById("source-text");
+
+			// Create cursors for both text and reasoning
+			const textCursor = document.createElement("span");
+			textCursor.className = "cursor";
+			const reasoningCursor = document.createElement("span");
+			reasoningCursor.className = "cursor";
 
 			const testLogs = [];
 			let model = null;
@@ -262,18 +341,23 @@ Write a detailed essay about the history of coding.</textarea
 				try {
 					streamBtn.disabled = true;
 					promptInput.disabled = true;
+					modelSelect.disabled = true;
 					output.style.display = "none";
-					output.textContent = "";
+					streamContent.textContent = "";
+					reasoningContent.style.display = "none";
+					reasoningText.textContent = "";
+					sourceContent.style.display = "none";
+					sourceText.textContent = "";
 
 					// Create new abort controller and reset abort button
 					abortController = new AbortController();
 					abortBtn.disabled = false;
 
 					// First ensure model is loaded
-					if (!model) {
+					if (!model || model.id !== modelSelect.value) {
 						updateStatus("streaming", "Loading model first...");
-						model = await window.testAPI.loadModel("onnx-community/Qwen2.5-Coder-0.5B-Instruct");
-						logTestEvent({ type: "model_loaded" });
+						model = await window.testAPI.loadModel(modelSelect.value);
+						logTestEvent({ type: "model_loaded", model: modelSelect.value });
 					}
 
 					// Update status to streaming now that model is ready
@@ -283,22 +367,65 @@ Write a detailed essay about the history of coding.</textarea
 					logTestEvent({ type: "stream_started", prompt });
 
 					output.style.display = "block";
-					output.appendChild(cursor);
+					// Don't add cursor yet, wait for first token
+					let hasReceivedFirstToken = false;
 
-					const { textStream } = await window.testAPI.streamText({
+					const { result } = await window.testAPI.streamText({
 						model,
 						messages: [{ role: "user", content: prompt }],
 						abortSignal: abortController.signal,
+						onChunk: chunk => {
+							if (chunk.type === "text-delta") {
+								const text = chunk.text.replace(/^\s+/, "");
+								if (text) {
+									// Add cursor on first token if not already added
+									if (!hasReceivedFirstToken) {
+										streamContent.appendChild(textCursor);
+										hasReceivedFirstToken = true;
+									}
+
+									// Only insert if cursor is still in the DOM
+									if (textCursor.parentNode === streamContent) {
+										streamContent.insertBefore(document.createTextNode(text), textCursor);
+									} else {
+										streamContent.appendChild(document.createTextNode(text));
+									}
+								}
+							} else if (chunk.type === "reasoning") {
+								reasoningContent.style.display = "block";
+								// Only add cursor if not already there
+								if (reasoningCursor.parentNode !== reasoningText) {
+									reasoningText.textContent = "";
+									reasoningText.appendChild(reasoningCursor);
+								}
+								// Only insert if cursor is still in the DOM
+								if (reasoningCursor.parentNode === reasoningText) {
+									const text = chunk.text.replace(/^\s+/, "");
+									reasoningText.insertBefore(document.createTextNode(text), reasoningCursor);
+								} else {
+									const text = chunk.text.replace(/^\s+/, "");
+									reasoningText.appendChild(document.createTextNode(text));
+								}
+							}
+						},
 					});
 
 					try {
-						for await (const chunk of textStream) {
-							output.insertBefore(document.createTextNode(chunk), cursor);
-							logTestEvent({ type: "stream_chunk", chunk });
-						}
-						cursor.remove();
+						// Get the final result
+						const finalResult = await result;
+
+						// Log the final result
+						console.log("[Stream Complete]", finalResult);
+
+						// Only remove cursors after everything is done
+						textCursor.remove();
+						reasoningCursor.remove();
+
 						updateStatus("success", "Stream complete!");
-						logTestEvent({ type: "stream_complete", result: output.textContent });
+						logTestEvent({
+							type: "stream_complete",
+							result: finalResult,
+						});
 					} catch (error) {
 						console.log("[Stream Error Details]", {
 							name: error.name,
@@ -319,8 +446,16 @@ Write a detailed essay about the history of coding.</textarea
 					updateStatus("error", `Stream failed: ${error.message}`);
 					logTestEvent({ type: "error", error: error.message });
 				} finally {
+					// Always clean up cursors if they're still in the DOM
+					if (textCursor.parentNode === streamContent) {
+						textCursor.remove();
+					}
+					if (reasoningCursor.parentNode === reasoningText) {
+						reasoningCursor.remove();
+					}
 					streamBtn.disabled = false;
 					promptInput.disabled = false;
+					modelSelect.disabled = false;
 					abortController = null;
 					abortBtn.disabled = false;
 				}

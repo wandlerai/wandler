@@ -1,3 +1,4 @@
+import type { TextStreamPart } from "@wandler/types/generation";
 import type { Message } from "@wandler/types/message";
 import type { ModelOptions, ModelPerformance } from "@wandler/types/model";
 
@@ -27,9 +28,48 @@ export interface WorkerMessage {
 
 export interface WorkerResponse {
 	type: WorkerResponseType;
-	payload: any;
+	payload: WorkerResponsePayload;
 	id: string;
 }
+
+export type WorkerResponsePayload =
+	| TextStreamPart // For stream events
+	| null // For completion events
+	| {
+			// For generation results
+			text: string;
+			reasoning: string | null;
+			sources: string[] | null;
+			finishReason: string | null;
+			usage: {
+				promptTokens?: number;
+				completionTokens?: number;
+				totalTokens?: number;
+			} | null;
+			messages: Message[] | null;
+	  }
+	| {
+			// For load results
+			id: string;
+			provider: string;
+			capabilities: {
+				textGeneration: boolean;
+				textClassification: boolean;
+				imageGeneration: boolean;
+				audioProcessing: boolean;
+				vision: boolean;
+			};
+			performance: ModelPerformance;
+			config: Record<string, any>;
+	  }
+	| {
+			// For progress updates
+			status: string;
+			loaded?: number;
+			total?: number;
+			file?: string;
+	  }
+	| Error; // For error events
 
 export interface WorkerInstance {
 	bridge: WorkerBridge;

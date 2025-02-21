@@ -1,3 +1,5 @@
+import type { TextStreamPart } from "@wandler/types/generation";
+import type { Message } from "@wandler/types/message";
 import type { BaseModel } from "@wandler/types/model";
 import type { WorkerMessage, WorkerResponse } from "@wandler/types/worker";
 
@@ -139,31 +141,104 @@ async function handleGenerateText(
 	}
 }
 
-async function handleStreamText(messages: any[], options = {}) {
-	if (!model?.tokenizer || !model.instance) {
-		throw new Error("Model not loaded");
-	}
-
+async function handleStreamText(
+	model: BaseModel,
+	messages: Message[],
+	config: any,
+	messageId: string
+) {
 	try {
-		await generateWithTransformers(model, {
+		let text = ""; // The main text content (without think blocks)
+		let fullText = ""; // Complete text including think blocks (for final result)
+		let inThinkBlock = false;
+		let currentReasoning = "";
+		let lastReasoningSent = "";
+		let lastTextSent = "";
+
+		const result = await generateWithTransformers(model, {
 			messages,
-			...options,
+			...config,
 			streamCallback: (token: string) => {
-				sendResponse({
-					type: "stream",
-					payload: token,
-					id: "stream",
-				});
+				// Check if we're entering a think block
+				if (token.includes("<think>")) {
+					inThinkBlock = true;
+					fullText += token;
+					return;
+				}
+
+				// Check if we're exiting a think block
+				if (token.includes("</think>")) {
+					inThinkBlock = false;
+					fullText += token;
+					return;
+				}
+
+				// Always accumulate the full text
+				fullText += token;
+
+				if (inThinkBlock) {
+					// Accumulate reasoning
+					currentReasoning += token;
+					// Only send the new part of reasoning
+					const newReasoning = currentReasoning.slice(lastReasoningSent.length);
+					if (newReasoning) {
+						const reasoningPart: TextStreamPart = {
+							type: "reasoning",
+							textDelta: newReasoning,
+						};
+						sendResponse({
+							type: "stream",
+							payload: reasoningPart,
+							id: messageId,
+						});
+						lastReasoningSent = currentReasoning;
+					}
+				} else {
+					// Accumulate main text
+					text += token;
+					// Only send text-delta for new content
+					const newText = text.slice(lastTextSent.length);
+					if (newText) {
+						const part: TextStreamPart = {
+							type: "text-delta",
+							textDelta: newText,
+						};
+						sendResponse({
+							type: "stream",
+							payload: part,
+							id: messageId,
+						});
+						lastTextSent = text;
+					}
+				}
 			},
+		});
+
+		// Send completion message with the final result
+		sendResponse({
+			type: "generated",
+			payload: {
+				text: fullText.replace(/<think>[\s\S]*?<\/think>/g, "").trim(),
+				reasoning: result.reasoning ?? currentReasoning.trim() ?? null,
+				sources: result.sources ?? null,
+				finishReason: result.finishReason ?? null,
+				usage: result.usage ?? null,
+				messages: messages?.length ? [...messages, { role: "assistant", content: fullText }] : null,
+			} as {
+				text: string;
+				reasoning: string | null;
+				sources: string[] | null;
+				finishReason: string | null;
+				usage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
+				messages: Message[] | null;
+			},
+			id: messageId,
 		});
 	} catch (error: any) {
 		sendResponse({
 			type: "error",
-			payload: {
-				message: error.message,
-				stack: error.stack,
-			},
-			id: "stream",
+			payload: error instanceof Error ? error : new Error(error.message),
+			id: messageId,
 		});
 		throw error;
 	}
@@ -206,7 +281,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 						sources: result.sources ?? null,
 						finishReason: result.finishReason ?? null,
 						usage: result.usage ?? null,
-						messages: result.messages ?? [{ role: "assistant", content: result.text }],
+						messages: payload.messages,
 					},
 					id,
 				});
@@ -223,27 +298,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 				if (!model.capabilities?.textGeneration) {
 					throw new Error("Model does not support text generation");
 				}
-				await handleStreamText(payload.messages, {
-					max_new_tokens: payload.max_new_tokens,
-					do_sample: payload.do_sample,
-					temperature: payload.temperature,
-					top_p: payload.top_p,
-					repetition_penalty: payload.repetition_penalty,
-					stop: payload.stop,
-					seed: payload.seed,
-				});
-				// Send completion message
-				sendResponse({
-					type: "generated",
-					payload: {
-						text: null,
-						reasoning: null,
-						sources: null,
-						finishReason: null,
-						usage: null,
-					},
-					id,
-				});
+				await handleStreamText(model, payload.messages, payload, id);
 				break;
 			}
 
@@ -260,11 +315,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 		console.error("Worker error:", error);
 		sendResponse({
 			type: "error",
-			payload: {
-				message: error.message,
-				name: error.name,
-				code: error.code,
-			},
+			payload: new Error(error.message),
 			id,
 		});
 	}

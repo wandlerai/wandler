@@ -8,6 +8,7 @@
 import type { PreTrainedModel } from "@huggingface/transformers";
 import type {
 	ModelOutput,
+	TextStreamPart,
 	TransformersGenerateConfig,
 	TransformersGenerateResult,
 } from "@wandler/types/generation";
@@ -192,22 +193,30 @@ export async function generateWithTransformers(
 		// Get prompt token count for usage stats
 		const promptTokenCount = inputs.input_ids.tolist()[0].length;
 
-		// Log tokenization details if streaming
-		if (config.streamCallback) {
-			console.log("[Transformers] Applied chat template:", inputs);
-			console.log("[Transformers] Input token ids:", inputs.input_ids.tolist());
-			console.log(
-				"[Transformers] Input decoded:",
-				model.tokenizer.batch_decode(inputs.input_ids.tolist(), { skip_special_tokens: false })
-			);
-		}
-
 		// 3. Setup streamer if callback provided
 		const streamer = config.streamCallback
 			? new TextStreamer(model.tokenizer, {
 					skip_prompt: true,
 					skip_special_tokens: true,
-					callback_function: config.streamCallback,
+					callback_function: (token: string) => {
+						// Create text-delta event
+						const textPart: TextStreamPart = {
+							type: "text-delta",
+							textDelta: token.replace(/^\s+/, ""), // Trim leading whitespace
+						};
+
+						// Only send non-empty tokens
+						if (textPart.textDelta) {
+							// Add to streamParts array for final result
+							if (!config.streamParts) {
+								config.streamParts = [];
+							}
+							config.streamParts.push(textPart);
+
+							// Call the callback with the token
+							config.streamCallback?.(token.replace(/^\s+/, "")); // Trim leading whitespace
+						}
+					},
 				})
 			: config.streamer;
 
@@ -226,7 +235,6 @@ export async function generateWithTransformers(
 		if (config.streamCallback) {
 			console.log("[Transformers] Generation config:", generationConfig);
 			console.log("[Transformers] Model instance config:", model.instance.config);
-			console.log("[Transformers] KV Cache enabled:", model.performance.supportsKVCache);
 		}
 
 		// 5. Generate
@@ -278,6 +286,30 @@ export async function generateWithTransformers(
 			messages = result.messages;
 			reasoning = result.reasoning;
 			sources = result.sources;
+
+			// If we have reasoning, emit it as a stream part
+			if (reasoning && config.streamCallback) {
+				const reasoningPart: TextStreamPart = {
+					type: "reasoning",
+					textDelta: reasoning,
+				};
+				config.streamParts?.push(reasoningPart);
+			}
+
+			// If we have sources, emit them as stream parts
+			if (sources && config.streamCallback) {
+				sources.forEach((sourceContent: string) => {
+					const sourcePart: TextStreamPart = {
+						type: "source",
+						source: {
+							id: `source-${Date.now()}`,
+							content: sourceContent,
+							metadata: {},
+						},
+					};
+					config.streamParts?.push(sourcePart);
+				});
+			}
 		} catch (error: any) {
 			console.warn(
 				`[Transformers] Provider ${model.provider} failed to parse messages:`,
@@ -300,17 +332,6 @@ export async function generateWithTransformers(
 		// Determine finish reason based on output
 		let finishReason = "length";
 
-		const fullOutput2 = model.tokenizer.batch_decode(sequences, {
-			skip_special_tokens: false,
-		})[0];
-
-		console.log(
-			"[Transformers] Sequence array:",
-			Number(sequenceArray[sequenceArray.length - 1]),
-			model.tokenizer.eos_token_id
-		);
-		console.log("[Transformers] Full output:", fullOutput2);
-
 		if (config.abortSignal?.aborted) {
 			finishReason = "abort";
 		} else if (Number(sequenceArray[sequenceArray.length - 1]) === model.tokenizer.eos_token_id) {
@@ -318,20 +339,6 @@ export async function generateWithTransformers(
 		} else if (completionTokenCount >= (config.max_new_tokens || 1024)) {
 			finishReason = "length";
 		}
-
-		// Log completion details if streaming
-		if (config.streamCallback) {
-			console.log("[Transformers] Generation complete, raw output:", output);
-			console.log("[Transformers] Total tokens generated:", completionTokenCount);
-			console.log(
-				"[Transformers] Sequences shape:",
-				Array.isArray(sequences) ? sequences.length : sequences.shape
-			);
-			console.log("[Transformers] Final sequence tokens:", sequenceArray);
-		}
-
-		console.log("[Transformers] Result:", text);
-		console.log("[Transformers] Messages:", messages);
 
 		return {
 			text,
@@ -346,6 +353,7 @@ export async function generateWithTransformers(
 				totalTokens,
 			},
 			messages: messages ?? [{ role: "assistant", content: text }],
+			streamParts: config.streamParts,
 		} satisfies TransformersGenerateResult;
 	} catch (error: any) {
 		// Reset KV cache on error if it was being used
