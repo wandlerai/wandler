@@ -5,17 +5,17 @@
 */
 
 import type {
+	GenerationConfig,
 	NonStreamingGenerationOptions,
 	StreamingGenerationOptions,
 } from "@wandler/types/generation";
-import type { GenerateConfig } from "@wandler/utils/transformers";
 
 type GenerationOptions = StreamingGenerationOptions | NonStreamingGenerationOptions;
 
 /**
  * Prepares a unified generation config from various input options, using model defaults when available
  */
-export function prepareGenerationConfig(options: GenerationOptions): GenerateConfig {
+export function prepareGenerationConfig(options: GenerationOptions): GenerationConfig {
 	const model = options.model;
 
 	return {
@@ -48,7 +48,7 @@ function isStreamTextOptions(options: GenerationOptions): options is StreamingGe
 /**
  * Validates generation config values are within acceptable ranges
  */
-export function validateGenerationConfig(config: GenerateConfig): void {
+export function validateGenerationConfig(config: GenerationConfig): void {
 	if (config.max_new_tokens !== undefined && config.max_new_tokens <= 0) {
 		throw new Error("max_new_tokens must be greater than 0");
 	}
@@ -60,8 +60,5 @@ export function validateGenerationConfig(config: GenerateConfig): void {
 	}
 	if (config.repetition_penalty !== undefined && config.repetition_penalty < 1) {
 		throw new Error("repetition_penalty must be greater than or equal to 1");
-	}
-	if (config.max_steps !== undefined && config.max_steps < 1) {
-		throw new Error("max_steps must be greater than 0");
 	}
 }

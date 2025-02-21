@@ -1,6 +1,7 @@
-import { getProvider } from "@wandler/providers/registry";
 import type { BaseModel, ModelOptions } from "@wandler/types/model";
 import type { WorkerMessage } from "@wandler/types/worker";
+
+import { getProvider } from "@wandler/providers/registry";
 import { WorkerManager } from "@wandler/utils/worker-manager";
 
 export async function loadModel(modelPath: string, options: ModelOptions = {}): Promise<BaseModel> {
@@ -12,17 +13,25 @@ export async function loadModel(modelPath: string, options: ModelOptions = {}): 
 
 	if (useWorker) {
 		try {
-			const worker = await workerManager.createWorker(modelPath, options);
-			const bridge = worker.bridge;
+			const workerInstance = await workerManager.createWorker(modelPath, options);
+			const bridge = workerInstance.bridge;
 
 			// Create a copy of options without the callback
-			const { onProgress, ...workerOptions } = options;
+			const { onProgress, performance, ...restOptions } = options;
 
 			const message: WorkerMessage = {
 				type: "load",
 				payload: {
 					modelPath,
-					options: workerOptions,
+					options: {
+						...restOptions,
+						performance: {
+							supportsKVCache: false,
+							groupedQueryAttention: false,
+							recommendedDtype: "auto",
+							...performance,
+						},
+					},
 				},
 				id: `load-${Date.now()}`,
 			};
@@ -46,12 +55,7 @@ export async function loadModel(modelPath: string, options: ModelOptions = {}): 
 			// Add worker-specific methods and properties
 			return {
 				...model,
-				worker: {
-					bridge,
-				},
-				dispose: () => {
-					workerManager.terminateWorker(modelPath);
-				},
+				worker: workerInstance,
 			};
 		} catch (error) {
 			console.warn("Worker-based loading failed:", error);

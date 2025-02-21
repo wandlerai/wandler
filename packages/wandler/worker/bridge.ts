@@ -24,10 +24,12 @@ export class WorkerBridge {
 
 			const handler = this.messageHandlers.get(id);
 			if (handler) {
-				if (type === "error") {
+				if (type === "error" && payload instanceof Error) {
 					const error = new Error(payload.message);
 					error.name = payload.name;
-					(error as any).code = payload.code;
+					if ("code" in payload) {
+						(error as any).code = payload.code;
+					}
 					handler({ type, payload: error, id });
 				} else {
 					handler(e.data);

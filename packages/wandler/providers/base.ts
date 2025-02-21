@@ -17,7 +17,7 @@ export abstract class BaseProvider {
 	 */
 	public reverseTemplate(formattedOutput: string): ReverseTemplateResult {
 		throw new Error(
-			`${this.constructor.name} does not implement reverseTemplate(). Each provider must implement its own message parsing logic.`
+			`${this.constructor.name} does not implement reverseTemplate(). Each provider must implement its own message parsing logic. ${formattedOutput}`
 		);
 	}
 

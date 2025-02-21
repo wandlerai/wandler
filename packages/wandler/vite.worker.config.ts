@@ -2,20 +2,13 @@ import { resolve } from "path";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-	root: "../../tests/demo",
-	server: {
-		open: "chat.html",
-		host: "127.0.0.1",
-		port: 3001,
-	},
 	build: {
 		lib: {
-			entry: resolve(__dirname, "index.ts"),
-			name: "wandler",
-			formats: ["es", "umd"],
-			fileName: format => `index.${format === "es" ? "js" : "umd.cjs"}`,
+			entry: resolve(__dirname, "worker/worker.ts"),
+			formats: ["es"],
+			fileName: () => "worker.js",
 		},
-		outDir: resolve(__dirname, "dist"),
+		outDir: resolve(__dirname, "dist/worker"),
 		sourcemap: true,
 		rollupOptions: {
 			external: ["@huggingface/transformers"],

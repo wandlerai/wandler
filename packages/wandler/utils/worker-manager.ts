@@ -1,5 +1,6 @@
 import type { ModelOptions } from "@wandler/types/model";
 import type { WorkerInstance } from "@wandler/types/worker";
+
 import { WorkerBridge } from "@wandler/worker/bridge";
 
 const WORKER_TIMEOUT = 30000; // 30 seconds
@@ -34,7 +35,7 @@ export class WorkerManager {
 
 		// Check if worker already exists
 		const existingWorker = this.workers.get(modelId);
-		if (existingWorker && !existingWorker.isTerminated) {
+		if (existingWorker) {
 			return existingWorker;
 		}
 
