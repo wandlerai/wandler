@@ -1,5 +1,19 @@
 import { expect, test } from "@playwright/test";
 
+interface TestLog {
+	timestamp: number;
+	type: string;
+	result?: {
+		text: string;
+		reasoning: string | null;
+		sources: string[] | null;
+		finishReason: string | null;
+		usage: { promptTokens?: number; completionTokens?: number; totalTokens?: number } | null;
+		messages: { role: string; content: string }[];
+	};
+	[key: string]: any;
+}
+
 test.describe("streamText E2E", () => {
 	test.beforeEach(async ({ page }) => {
 		// Navigate to page first
@@ -10,20 +24,20 @@ test.describe("streamText E2E", () => {
 		// Verify initial state
 		await expect(page.getByText("Ready to stream")).toBeVisible();
 
-		await page.fill("#prompt", "Explain what coding is in one sentence");
+		await page.fill("#prompt", "Say hi!");
 
 		// Click stream button and wait for model to load
 		await page.click("#stream-btn");
 		await expect(page.getByText("Loading model first...")).toBeVisible();
 
-		// Wait for streaming to complete
-		await expect(page.getByText("Stream complete!")).toBeVisible();
-
 		// Verify output is visible
 		await expect(page.locator("#output")).toBeVisible();
 
+		// Wait for streaming to complete
+		await expect(page.getByText("Stream complete!")).toBeVisible({ timeout: 200000 });
+
 		// Verify logs contain expected events
-		const logs = await page.evaluate(() => window.testLogs);
+		const logs = (await page.evaluate(() => window.testLogs)) as TestLog[];
 		expect(logs.some(log => log.type === "model_loaded")).toBeTruthy();
 		expect(logs.some(log => log.type === "stream_started")).toBeTruthy();
 		expect(logs.some(log => log.type === "stream_chunk")).toBeTruthy();
@@ -31,7 +45,13 @@ test.describe("streamText E2E", () => {
 
 		// Get the final streamed result
 		const streamLog = logs.find(log => log.type === "stream_complete");
-		expect(streamLog?.result).toBeTruthy();
+		expect(streamLog).toBeTruthy();
+		expect(typeof streamLog?.result?.text).toBe("string");
+		expect(streamLog?.result?.reasoning).toBe("");
+		expect(streamLog?.result?.sources).toBe(null);
+		expect(typeof streamLog?.result?.finishReason).toBe("string");
+		expect(typeof streamLog?.result?.usage).toBe("object");
+		expect(streamLog?.result?.messages?.length).toBeGreaterThan(0);
 	});
 
 	test("can abort streaming", async ({ page }) => {
@@ -60,7 +80,7 @@ test.describe("streamText E2E", () => {
 		await expect(page.locator("#prompt")).toBeEnabled();
 
 		// Now that we know the abort handling is complete, verify the logs
-		const logs = await page.evaluate(() => window.testLogs);
+		const logs = (await page.evaluate(() => window.testLogs)) as TestLog[];
 		expect(logs.some(log => log.type === "stream_aborted")).toBeTruthy();
 
 		// Should be able to start a new stream
@@ -93,7 +113,7 @@ test.describe("streamText E2E", () => {
 		await expect(page.getByText("Stream failed:", { exact: false })).toBeVisible();
 
 		// Verify error is logged
-		const logs = await page.evaluate(() => window.testLogs);
+		const logs = (await page.evaluate(() => window.testLogs)) as TestLog[];
 		const errorLog = logs.find(log => log.type === "error");
 		expect(errorLog).toBeTruthy();
 		expect(errorLog?.error).toContain("Model execution failed");

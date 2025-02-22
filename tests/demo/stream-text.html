@@ -375,6 +375,8 @@ Write a detailed essay about the history of coding.</textarea
 						messages: [{ role: "user", content: prompt }],
 						abortSignal: abortController.signal,
 						onChunk: chunk => {
+							logTestEvent({ type: "stream_chunk", chunk });
+
 							if (chunk.type === "text-delta") {
 								const text = chunk.text.replace(/^\s+/, "");
 								if (text) {

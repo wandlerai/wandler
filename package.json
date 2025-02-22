@@ -15,6 +15,7 @@
 		"changeset": "changeset",
 		"version": "changeset version",
 		"release": "npm run build && changeset publish",
+		"release:all": "npm run changeset && npm run version && npm run release",
 		"format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
 		"preinstall": "npx only-allow npm",
 		"lint": "eslint \"**/*.{ts,tsx}\"",
