@@ -1,5 +1,11 @@
 # wandler
 
+## 1.0.0-alpha.3
+
+### Major Changes
+
+- docs: use url for all images
+
 ## 1.0.0-alpha.2
 
 ### Major Changes
