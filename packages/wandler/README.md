@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../../assets/logo/wandler_logo_v5.svg" alt="wandler logo" width="900">
+  <img src="../../https://github.com/user-attachments/assets/f05a4f68-797d-48c6-9b01-59b8ce24e8bc" alt="wandler logo" width="900">
 </p>
 
 <h1 align="center" style="font-size: 5em;">run ai in your browser</h1>
@@ -11,7 +11,7 @@
 </div>
 
 <p align="center">
-  <img src="../../assets/hero/20250202_wandler_head_v2.jpg" alt="wandler head" width="600">
+  <img src="../../https://github.com/user-attachments/assets/66ac6889-c8eb-45e1-8841-5b071db9fb7f" alt="wandler head" width="600">
 </p>
 
 <br/>
@@ -30,5 +30,5 @@
 <br/>
 
 <p align="center">
-  <strong>docs are coming soon</strong>
+  <strong><a href="https://wandler.ai/docs">wandler.ai/docs</a></strong>
 </p>
