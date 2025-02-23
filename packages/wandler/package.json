@@ -1,6 +1,6 @@
 {
 	"name": "wandler",
-	"version": "1.0.0-alpha.3",
+	"version": "1.0.0-alpha.4",
 	"description": "Run any AI model in your browser with WebGPU - no server required",
 	"type": "module",
 	"main": "./dist/index.umd.cjs",

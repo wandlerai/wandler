@@ -1,5 +1,21 @@
 # wandler
 
+## 1.0.0-alpha.4
+
+### Major Changes
+
+- - fixed stream-text test reliability by ensuring only one concurrent worker runs on cpu
+  - fixed broken documentation links
+  - removed unused ingest functionality
+
+## 1.0.0-alpha.4
+
+### Major Changes
+
+- - fixed stream-text test reliability by ensuring only one concurrent worker runs on cpu
+  - fixed broken documentation links
+  - removed unused ingest functionalit
+
 ## 1.0.0-alpha.3
 
 ### Major Changes
