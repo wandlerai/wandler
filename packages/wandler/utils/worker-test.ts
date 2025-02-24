@@ -15,7 +15,7 @@ export async function testWorkerLoading(): Promise<boolean> {
 		}
 
 		// Try to create a worker with a test model ID
-		const worker = await workerManager.createWorker("test-model");
+		await workerManager.createWorker("test-model");
 
 		// If we get here, the worker was created successfully
 		console.log("Worker created successfully");

@@ -11,6 +11,35 @@ function getWorkerUrl(): URL {
 	const baseUrl = import.meta.url;
 	console.debug("Base URL for worker resolution:", baseUrl);
 
+	// Check if we're in a Vite-bundled environment (data: URL or .vite in the path)
+	const isViteBundled =
+		baseUrl.startsWith("data:") ||
+		baseUrl.includes("/.vite/") ||
+		baseUrl.includes("/node_modules/.vite/");
+
+	if (isViteBundled) {
+		console.debug("Detected Vite bundled environment");
+
+		// In Vite environments, we need to use a public URL approach
+		// This assumes the worker file is copied to the public directory or served as a separate asset
+		try {
+			// Try to use a direct path to the worker in the public directory
+			// This requires manually copying the worker file to the public directory in your app
+			const publicWorkerUrl = new URL("./worker.js", window.location.origin);
+			console.debug("Using public worker URL:", publicWorkerUrl.href);
+			return publicWorkerUrl;
+		} catch (error) {
+			console.debug("Public worker URL failed:", error);
+			console.error(
+				"When using Vite or other bundlers, you need to manually copy the worker file to your public directory."
+			);
+			console.error(
+				"See documentation at: https://github.com/timpietrusky/wandlerai/blob/main/packages/wandler/worker/README.md"
+			);
+			throw new Error("Worker loading failed in bundled environment. See console for details.");
+		}
+	}
+
 	try {
 		// First try direct import using the package name
 		// This should work when the package is installed from npm
@@ -45,8 +74,10 @@ function getWorkerUrl(): URL {
 				} catch (error4) {
 					console.debug("Method 4 failed:", error4);
 
-					// If we get here, we couldn't resolve the worker URL
-					throw new Error("Could not resolve worker URL");
+					// If all else fails, throw a helpful error
+					throw new Error(
+						"Could not resolve worker URL. When using bundlers like Vite, you may need to manually copy the worker file to your public directory."
+					);
 				}
 			}
 		}
