@@ -16,6 +16,8 @@ export default defineConfig({
 				globals: {
 					"@huggingface/transformers": "transformers",
 				},
+				format: "es",
+				inlineDynamicImports: true,
 			},
 		},
 	},

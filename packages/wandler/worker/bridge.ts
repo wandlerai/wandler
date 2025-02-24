@@ -5,12 +5,27 @@ export class WorkerBridge {
 	private worker: Worker;
 	private isTerminated: boolean;
 	private originalOnMessage: ((e: MessageEvent) => void) | null = null;
+	private workerUrl: string | URL;
 
 	constructor(workerUrl: string | URL) {
 		this.messageHandlers = new Map();
 		this.isTerminated = false;
-		this.worker = new Worker(workerUrl, { type: "module" });
-		this.setupMessageHandling();
+		this.workerUrl = workerUrl;
+
+		try {
+			console.debug(
+				"Creating worker with URL:",
+				typeof workerUrl === "string" ? workerUrl : workerUrl.href
+			);
+			this.worker = new Worker(workerUrl, { type: "module" });
+			this.setupMessageHandling();
+		} catch (error) {
+			console.error("Failed to create worker:", error);
+			// Re-throw with more context
+			throw new Error(
+				`Failed to create worker with URL ${typeof workerUrl === "string" ? workerUrl : workerUrl.href}: ${error instanceof Error ? error.message : String(error)}`
+			);
+		}
 	}
 
 	private setupMessageHandling() {
@@ -43,11 +58,19 @@ export class WorkerBridge {
 
 		this.worker.onerror = (e: ErrorEvent) => {
 			console.error("Worker error:", e);
+			console.error(
+				"Worker URL was:",
+				typeof this.workerUrl === "string" ? this.workerUrl : this.workerUrl.href
+			);
+
+			// Create a more detailed error message
+			const errorMessage = `Worker error: ${e.message}. File: ${e.filename}, Line: ${e.lineno}, Col: ${e.colno}`;
+
 			// Notify all pending handlers of the error
 			this.messageHandlers.forEach(handler => {
 				handler({
 					type: "error",
-					payload: e.error || new Error(e.message),
+					payload: e.error || new Error(errorMessage),
 					id: "error",
 				});
 			});
@@ -76,6 +99,7 @@ export class WorkerBridge {
 				this.worker.postMessage(message);
 			} catch (error) {
 				this.messageHandlers.delete(message.id);
+				console.error("Error posting message to worker:", error);
 				reject(error);
 			}
 		});

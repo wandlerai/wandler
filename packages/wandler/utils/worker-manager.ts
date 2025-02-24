@@ -5,6 +5,54 @@ import { WorkerBridge } from "@wandler/worker/bridge";
 
 const WORKER_TIMEOUT = 30000; // 30 seconds
 
+// Helper function to get the correct worker URL
+function getWorkerUrl(): URL {
+	// For debugging
+	const baseUrl = import.meta.url;
+	console.debug("Base URL for worker resolution:", baseUrl);
+
+	try {
+		// First try direct import using the package name
+		// This should work when the package is installed from npm
+		const workerUrl = new URL("wandler/worker", import.meta.url);
+		console.debug("Resolved worker URL (method 1):", workerUrl.href);
+		return workerUrl;
+	} catch (error) {
+		console.debug("Method 1 failed:", error);
+
+		try {
+			// Try using a relative path to the built worker
+			// This should work in development and when bundled
+			const workerUrl = new URL("../dist/worker/worker.js", import.meta.url);
+			console.debug("Resolved worker URL (method 2):", workerUrl.href);
+			return workerUrl;
+		} catch (error2) {
+			console.debug("Method 2 failed:", error2);
+
+			try {
+				// Fallback to the development path with JS extension
+				const workerUrl = new URL("../worker/worker.js", import.meta.url);
+				console.debug("Resolved worker URL (method 3):", workerUrl.href);
+				return workerUrl;
+			} catch (error3) {
+				console.debug("Method 3 failed:", error3);
+
+				// Last resort, try the TS file directly (for development)
+				try {
+					const workerUrl = new URL("../worker/worker.ts", import.meta.url);
+					console.debug("Resolved worker URL (method 4):", workerUrl.href);
+					return workerUrl;
+				} catch (error4) {
+					console.debug("Method 4 failed:", error4);
+
+					// If we get here, we couldn't resolve the worker URL
+					throw new Error("Could not resolve worker URL");
+				}
+			}
+		}
+	}
+}
+
 export class WorkerManager {
 	private static instance: WorkerManager;
 	private workers: Map<string, WorkerInstance>;
@@ -40,7 +88,9 @@ export class WorkerManager {
 		}
 
 		try {
-			const bridge = new WorkerBridge(new URL("../worker/worker.ts", import.meta.url));
+			const workerUrl = getWorkerUrl();
+			console.debug("Creating worker with URL:", workerUrl.href);
+			const bridge = new WorkerBridge(workerUrl);
 			const worker = bridge.getInstance();
 
 			// Store the worker instance
@@ -58,7 +108,9 @@ export class WorkerManager {
 			return worker;
 		} catch (error) {
 			console.error("Failed to create worker:", error);
-			throw new Error("Failed to initialize worker");
+			throw new Error(
+				`Failed to initialize worker: ${error instanceof Error ? error.message : String(error)}`
+			);
 		}
 	}
 

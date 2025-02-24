@@ -18,7 +18,8 @@
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"dist/worker"
 	],
 	"scripts": {
 		"dev": "vite",

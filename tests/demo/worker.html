@@ -1,0 +1,300 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>Wandler Worker Test</title>
+		<style>
+			body {
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 2rem;
+				font-family: system-ui, sans-serif;
+			}
+			.status-display {
+				display: flex;
+				align-items: center;
+				margin: 2rem 0;
+				padding: 1rem;
+				border-radius: 8px;
+				background: #f5f5f5;
+			}
+			.status-icon {
+				font-size: 2rem;
+				margin-right: 1rem;
+			}
+			.status-text {
+				font-size: 1.2rem;
+				flex: 1;
+			}
+			.status-loading .status-icon {
+				animation: spin 1s linear infinite;
+			}
+			.status-success {
+				background: #e6f7e6;
+				color: #2e7d32;
+			}
+			.status-error {
+				background: #fdeded;
+				color: #c62828;
+			}
+			.status-ready {
+				background: #e3f2fd;
+				color: #1565c0;
+			}
+			.log-container {
+				margin-top: 2rem;
+				border: 1px solid #ddd;
+				border-radius: 8px;
+				overflow: hidden;
+			}
+			.log-header {
+				background: #f5f5f5;
+				padding: 0.75rem 1rem;
+				font-weight: bold;
+				border-bottom: 1px solid #ddd;
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+			}
+			.log-content {
+				max-height: 400px;
+				overflow-y: auto;
+				padding: 0;
+				margin: 0;
+				background: #1e1e1e;
+				color: #d4d4d4;
+				font-family: "Consolas", "Monaco", monospace;
+				font-size: 0.9rem;
+				line-height: 1.5;
+			}
+			.log-entry {
+				padding: 0.25rem 1rem;
+				border-bottom: 1px solid #333;
+				white-space: pre-wrap;
+				word-break: break-all;
+			}
+			.log-entry.info {
+				color: #9cdcfe;
+			}
+			.log-entry.success {
+				color: #6a9955;
+			}
+			.log-entry.error {
+				color: #f44747;
+			}
+			.log-entry.debug {
+				color: #ce9178;
+			}
+			.test-btn {
+				padding: 0.75rem 1.5rem;
+				font-size: 1rem;
+				background: #3f51b5;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+				transition: background 0.2s;
+			}
+			.test-btn:hover {
+				background: #303f9f;
+			}
+			.test-btn:disabled {
+				background: #9e9e9e;
+				cursor: not-allowed;
+			}
+			.test-options {
+				margin: 1rem 0;
+				display: flex;
+				gap: 1rem;
+				flex-wrap: wrap;
+			}
+			.test-option {
+				display: flex;
+				align-items: center;
+				gap: 0.5rem;
+			}
+			@keyframes spin {
+				from {
+					transform: rotate(0deg);
+				}
+				to {
+					transform: rotate(360deg);
+				}
+			}
+			.clear-btn {
+				background: transparent;
+				border: none;
+				color: #666;
+				cursor: pointer;
+				font-size: 0.9rem;
+			}
+			.clear-btn:hover {
+				color: #333;
+				text-decoration: underline;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Wandler Worker Test</h1>
+		<p>
+			This page tests the worker functionality of Wandler. It attempts to load a worker and verifies
+			that it's working correctly.
+		</p>
+
+		<div class="test-options">
+			<button id="test-worker-btn" class="test-btn">Test Worker Loading</button>
+		</div>
+
+		<div class="status-display">
+			<div id="status-icon" class="status-icon status-ready">▶️</div>
+			<div id="status" class="status-text">Ready to test worker</div>
+		</div>
+
+		<div class="log-container">
+			<div class="log-header">
+				<span>Debug Log</span>
+				<button id="clear-log-btn" class="clear-btn">Clear</button>
+			</div>
+			<div id="log-content" class="log-content"></div>
+		</div>
+
+		<script type="module">
+			// Import directly from the package source
+			import { WorkerManager } from "../../packages/wandler/utils/worker-manager.ts";
+			import { testWorkerLoading, canUseWorker } from "../../packages/wandler/utils/worker-test.ts";
+
+			// Elements
+			const testWorkerBtn = document.getElementById("test-worker-btn");
+			const status = document.getElementById("status");
+			const statusIcon = document.getElementById("status-icon");
+			const logContent = document.getElementById("log-content");
+			const clearLogBtn = document.getElementById("clear-log-btn");
+
+			// Custom logging that captures console output
+			const originalConsole = {
+				log: console.log,
+				error: console.error,
+				warn: console.warn,
+				debug: console.debug,
+				info: console.info,
+			};
+
+			// Override console methods to capture logs
+			console.log = function (...args) {
+				addLogEntry("info", ...args);
+				originalConsole.log.apply(console, args);
+			};
+
+			console.error = function (...args) {
+				addLogEntry("error", ...args);
+				originalConsole.error.apply(console, args);
+			};
+
+			console.warn = function (...args) {
+				addLogEntry("warn", ...args);
+				originalConsole.warn.apply(console, args);
+			};
+
+			console.debug = function (...args) {
+				addLogEntry("debug", ...args);
+				originalConsole.debug.apply(console, args);
+			};
+
+			console.info = function (...args) {
+				addLogEntry("info", ...args);
+				originalConsole.info.apply(console, args);
+			};
+
+			// Add log entry to the UI
+			function addLogEntry(type, ...args) {
+				const entry = document.createElement("div");
+				entry.classList.add("log-entry", type);
+
+				// Format the log message
+				let message = args
+					.map(arg => {
+						if (typeof arg === "object") {
+							try {
+								return JSON.stringify(arg, null, 2);
+							} catch (e) {
+								return String(arg);
+							}
+						}
+						return String(arg);
+					})
+					.join(" ");
+
+				entry.textContent = message;
+				logContent.appendChild(entry);
+				logContent.scrollTop = logContent.scrollHeight;
+			}
+
+			// Update status
+			function updateStatus(message, type = "ready") {
+				status.textContent = message;
+				statusIcon.className = `status-icon status-${type}`;
+
+				// Update the status display class
+				const statusDisplay = document.querySelector(".status-display");
+				statusDisplay.className = `status-display status-${type}`;
+
+				// Set the icon
+				if (type === "ready") {
+					statusIcon.textContent = "▶️";
+				} else if (type === "loading") {
+					statusIcon.textContent = "🔄";
+				} else if (type === "success") {
+					statusIcon.textContent = "✅";
+				} else if (type === "error") {
+					statusIcon.textContent = "❌";
+				}
+			}
+
+			// Test worker loading
+			async function testWorker() {
+				updateStatus("Testing worker loading...", "loading");
+				testWorkerBtn.disabled = true;
+
+				try {
+					// Check if workers are supported
+					if (!canUseWorker()) {
+						updateStatus("Web Workers are not supported in this environment", "error");
+						console.error("Web Workers are not supported in this environment");
+						testWorkerBtn.disabled = false;
+						return;
+					}
+
+					console.log("Web Workers are supported in this environment");
+
+					// Test worker loading
+					const success = await testWorkerLoading();
+
+					if (success) {
+						updateStatus("Worker loaded successfully!", "success");
+						console.log("Worker loaded successfully!");
+					} else {
+						updateStatus("Worker loading failed.", "error");
+						console.error("Worker loading failed.");
+					}
+				} catch (error) {
+					updateStatus(`Error testing worker: ${error.message}`, "error");
+					console.error("Error testing worker:", error);
+				} finally {
+					testWorkerBtn.disabled = false;
+				}
+			}
+
+			// Clear log
+			function clearLog() {
+				logContent.innerHTML = "";
+			}
+
+			// Event listeners
+			testWorkerBtn.addEventListener("click", testWorker);
+			clearLogBtn.addEventListener("click", clearLog);
+
+			// Initial log
+			console.log("Worker test page loaded. Click 'Test Worker Loading' to begin.");
+		</script>
+	</body>
+</html>
