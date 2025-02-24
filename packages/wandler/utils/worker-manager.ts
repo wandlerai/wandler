@@ -25,72 +25,24 @@ self.onmessage = (e) => {
 };
 `;
 
+// Helper function to test if a URL exists by making a HEAD request
+function urlExists(url: string): boolean {
+	try {
+		const xhr = new XMLHttpRequest();
+		xhr.open("HEAD", url, false);
+		xhr.send();
+		return xhr.status >= 200 && xhr.status < 300;
+	} catch (e) {
+		console.debug("URL check failed:", e);
+		return false;
+	}
+}
+
 // Helper function to get the correct worker URL or create an inline worker
 function getWorkerUrl(): URL | Worker {
 	// For debugging
 	const baseUrl = import.meta.url;
 	console.debug("Base URL for worker resolution:", baseUrl);
-
-	// First try direct import using the package name
-	// This should work when the package is installed from npm
-	try {
-		const workerUrl = new URL("wandler/worker", import.meta.url);
-		console.debug("Resolved worker URL (method 1):", workerUrl.href);
-
-		// Verify the worker exists with a HEAD request
-		try {
-			const xhr = new XMLHttpRequest();
-			xhr.open("HEAD", workerUrl.href, false);
-			xhr.send();
-			if (xhr.status >= 200 && xhr.status < 300) {
-				return workerUrl;
-			}
-		} catch (e) {
-			console.debug("Worker verification failed:", e);
-		}
-	} catch (error) {
-		console.debug("Method 1 failed:", error);
-	}
-
-	// Try using a relative path to the built worker
-	try {
-		const workerUrl = new URL("../dist/worker/worker.js", import.meta.url);
-		console.debug("Resolved worker URL (method 2):", workerUrl.href);
-
-		// Verify the worker exists
-		try {
-			const xhr = new XMLHttpRequest();
-			xhr.open("HEAD", workerUrl.href, false);
-			xhr.send();
-			if (xhr.status >= 200 && xhr.status < 300) {
-				return workerUrl;
-			}
-		} catch (e) {
-			console.debug("Worker verification failed:", e);
-		}
-	} catch (error2) {
-		console.debug("Method 2 failed:", error2);
-	}
-
-	// Try the development path with JS extension
-	try {
-		const workerUrl = new URL("../worker/worker.js", import.meta.url);
-		console.debug("Resolved worker URL (method 3):", workerUrl.href);
-
-		// Verify the worker exists
-		try {
-			const xhr = new XMLHttpRequest();
-			xhr.open("HEAD", workerUrl.href, false);
-			xhr.send();
-			if (xhr.status >= 200 && xhr.status < 300) {
-				return workerUrl;
-			}
-		} catch (e) {
-			console.debug("Worker verification failed:", e);
-		}
-	} catch (error3) {
-		console.debug("Method 3 failed:", error3);
-	}
 
 	// Check if we're in a Vite-bundled environment
 	const isViteBundled =
@@ -98,30 +50,137 @@ function getWorkerUrl(): URL | Worker {
 		baseUrl.includes("/.vite/") ||
 		baseUrl.includes("/node_modules/.vite/");
 
-	if (isViteBundled) {
-		console.debug("Detected Vite bundled environment");
+	// STRATEGY 1: Try direct import.meta.url resolution first (recommended approach)
+	// This should work in most bundlers that properly handle Web Workers
+	try {
+		// Try with the exact path "./worker.js" as recommended
+		const workerUrl = new URL("./worker.js", import.meta.url);
+		console.debug("Trying direct worker URL:", workerUrl.href);
 
-		// For Vite, try to fetch the worker content directly from the package
+		if (urlExists(workerUrl.href)) {
+			console.debug("Worker found with direct URL");
+			return workerUrl;
+		}
+	} catch (error) {
+		console.debug("Direct worker URL failed:", error);
+	}
+
+	// Try with relative paths that might work in different build configurations
+	const relativePaths = [
+		"../worker/worker.js", // Source directory
+		"../dist/worker/worker.js", // Built directory
+		"./worker/worker.js", // Adjacent directory
+		"wandler/worker.js", // Package name
+	];
+
+	for (const path of relativePaths) {
 		try {
-			// Attempt to fetch the worker code directly
-			const xhr = new XMLHttpRequest();
-			xhr.open("GET", "node_modules/wandler/dist/worker/worker.js", false);
-			try {
-				xhr.send();
-				if (xhr.status >= 200 && xhr.status < 300) {
-					// We got the worker code, create an inline worker
-					console.debug("Creating inline worker from fetched code");
-					return createWorkerFromString(xhr.responseText);
-				}
-			} catch (e) {
-				console.debug("Worker fetch failed:", e);
+			const workerUrl = new URL(path, import.meta.url);
+			console.debug(`Trying relative worker URL (${path}):`, workerUrl.href);
+
+			if (urlExists(workerUrl.href)) {
+				console.debug(`Worker found at relative path: ${path}`);
+				return workerUrl;
 			}
 		} catch (error) {
-			console.debug("Vite worker fetch failed:", error);
+			console.debug(`Relative path ${path} failed:`, error);
 		}
 	}
 
-	// If all else fails, create a minimal worker as a fallback
+	// STRATEGY 2: Try to load from common locations in the site root
+	// This works for bundlers that copy the worker file to the output directory
+	try {
+		// Try common locations for the worker file
+		const possibleLocations = [
+			"/worker.js", // Root of the site
+			"/assets/worker.js", // Vite assets directory
+			"/static/worker.js", // Common static directory
+			"/js/worker.js", // Common JS directory
+			"/dist/worker.js", // Common dist directory
+			"/wandler/worker.js", // Namespaced directory
+		];
+
+		for (const location of possibleLocations) {
+			const workerUrl = new URL(location, window.location.origin);
+			console.debug(`Trying site root worker at: ${workerUrl.href}`);
+
+			if (urlExists(workerUrl.href)) {
+				console.debug(`Worker found at site root: ${location}`);
+				return workerUrl;
+			}
+		}
+	} catch (error) {
+		console.debug("Site root worker loading failed:", error);
+	}
+
+	// STRATEGY 3: For Vite, create an inline worker with dynamic imports
+	if (isViteBundled) {
+		console.debug("Creating Vite-compatible inline worker");
+
+		try {
+			// Create a worker that dynamically imports the worker module
+			// This approach works with Vite's code splitting
+			const bootstrapWorker = `
+				// First try to import using relative path
+				import('./worker.js')
+					.catch(() => import('../worker/worker.js'))
+					.catch(() => import('../dist/worker/worker.js'))
+					.catch(() => import('wandler/worker'))
+					.then(module => {
+						// Set up message handler
+						self.onmessage = (e) => {
+							const { id, type, payload } = e.data;
+							// Process the message using the imported worker code
+							if (type === "load" && module.loadModel) {
+								module.loadModel(payload.modelPath, payload.options)
+									.then(result => {
+										self.postMessage({ id, type: "load", payload: result });
+									})
+									.catch(error => {
+										self.postMessage({ id, type: "error", payload: error });
+									});
+							} else if (type === "generate" && module.handleGenerateText) {
+								module.handleGenerateText(payload.messages, payload.options)
+									.then(result => {
+										self.postMessage({ id, type: "generate", payload: result });
+									})
+									.catch(error => {
+										self.postMessage({ id, type: "error", payload: error });
+									});
+							} else if (type === "stream" && module.handleStreamText) {
+								module.handleStreamText(payload.model, payload.messages, payload.config, id)
+									.catch(error => {
+										self.postMessage({ id, type: "error", payload: error });
+									});
+							} else {
+								self.postMessage({ 
+									id, 
+									type: "error", 
+									payload: new Error(\`Unknown message type or method not found: \${type}\`) 
+								});
+							}
+						};
+					})
+					.catch(error => {
+						// If the import fails, send an error message
+						self.onmessage = (e) => {
+							const { id } = e.data;
+							self.postMessage({
+								id,
+								type: "error",
+								payload: new Error(\`Failed to load worker module: \${error.message}\`)
+							});
+						};
+					});
+			`;
+
+			return createWorkerFromString(bootstrapWorker);
+		} catch (error) {
+			console.debug("Vite inline worker creation failed:", error);
+		}
+	}
+
+	// STRATEGY 4: If all else fails, create a minimal worker as a fallback
 	console.warn("Could not resolve worker URL. Using minimal fallback worker.");
 	console.warn("Functionality will be limited. Check console for more details.");
 	return createWorkerFromString(MINIMAL_WORKER_CODE);
