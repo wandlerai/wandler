@@ -1,5 +1,11 @@
 # wandler
 
+## 1.0.0-alpha.6
+
+### Major Changes
+
+- fix(worker): proper path to load the worker
+
 ## 1.0.0-alpha.5
 
 ### Major Changes
