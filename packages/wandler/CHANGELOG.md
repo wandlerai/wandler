@@ -1,5 +1,11 @@
 # wandler
 
+## 1.0.0-alpha.7
+
+### Major Changes
+
+- fix(worker): find a way to load the worker
+
 ## 1.0.0-alpha.6
 
 ### Major Changes
