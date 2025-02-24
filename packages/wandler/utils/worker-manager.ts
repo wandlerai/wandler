@@ -5,13 +5,94 @@ import { WorkerBridge } from "@wandler/worker/bridge";
 
 const WORKER_TIMEOUT = 30000; // 30 seconds
 
-// Helper function to get the correct worker URL
-function getWorkerUrl(): URL {
+// Helper function to create a worker from a string of code
+function createWorkerFromString(code: string): Worker {
+	const blob = new Blob([code], { type: "application/javascript" });
+	const url = URL.createObjectURL(blob);
+	return new Worker(url, { type: "module" });
+}
+
+// Minimal worker code that can be used as a fallback
+// This is a simplified version that just forwards the error
+const MINIMAL_WORKER_CODE = `
+self.onmessage = (e) => {
+  const { id, type } = e.data;
+  self.postMessage({
+    id,
+    type: "error",
+    payload: new Error("Worker fallback mode: This is a minimal worker implementation. The full worker.js file could not be loaded.")
+  });
+};
+`;
+
+// Helper function to get the correct worker URL or create an inline worker
+function getWorkerUrl(): URL | Worker {
 	// For debugging
 	const baseUrl = import.meta.url;
 	console.debug("Base URL for worker resolution:", baseUrl);
 
-	// Check if we're in a Vite-bundled environment (data: URL or .vite in the path)
+	// First try direct import using the package name
+	// This should work when the package is installed from npm
+	try {
+		const workerUrl = new URL("wandler/worker", import.meta.url);
+		console.debug("Resolved worker URL (method 1):", workerUrl.href);
+
+		// Verify the worker exists with a HEAD request
+		try {
+			const xhr = new XMLHttpRequest();
+			xhr.open("HEAD", workerUrl.href, false);
+			xhr.send();
+			if (xhr.status >= 200 && xhr.status < 300) {
+				return workerUrl;
+			}
+		} catch (e) {
+			console.debug("Worker verification failed:", e);
+		}
+	} catch (error) {
+		console.debug("Method 1 failed:", error);
+	}
+
+	// Try using a relative path to the built worker
+	try {
+		const workerUrl = new URL("../dist/worker/worker.js", import.meta.url);
+		console.debug("Resolved worker URL (method 2):", workerUrl.href);
+
+		// Verify the worker exists
+		try {
+			const xhr = new XMLHttpRequest();
+			xhr.open("HEAD", workerUrl.href, false);
+			xhr.send();
+			if (xhr.status >= 200 && xhr.status < 300) {
+				return workerUrl;
+			}
+		} catch (e) {
+			console.debug("Worker verification failed:", e);
+		}
+	} catch (error2) {
+		console.debug("Method 2 failed:", error2);
+	}
+
+	// Try the development path with JS extension
+	try {
+		const workerUrl = new URL("../worker/worker.js", import.meta.url);
+		console.debug("Resolved worker URL (method 3):", workerUrl.href);
+
+		// Verify the worker exists
+		try {
+			const xhr = new XMLHttpRequest();
+			xhr.open("HEAD", workerUrl.href, false);
+			xhr.send();
+			if (xhr.status >= 200 && xhr.status < 300) {
+				return workerUrl;
+			}
+		} catch (e) {
+			console.debug("Worker verification failed:", e);
+		}
+	} catch (error3) {
+		console.debug("Method 3 failed:", error3);
+	}
+
+	// Check if we're in a Vite-bundled environment
 	const isViteBundled =
 		baseUrl.startsWith("data:") ||
 		baseUrl.includes("/.vite/") ||
@@ -20,68 +101,30 @@ function getWorkerUrl(): URL {
 	if (isViteBundled) {
 		console.debug("Detected Vite bundled environment");
 
-		// In Vite environments, we need to use a public URL approach
-		// This assumes the worker file is copied to the public directory or served as a separate asset
+		// For Vite, try to fetch the worker content directly from the package
 		try {
-			// Try to use a direct path to the worker in the public directory
-			// This requires manually copying the worker file to the public directory in your app
-			const publicWorkerUrl = new URL("./worker.js", window.location.origin);
-			console.debug("Using public worker URL:", publicWorkerUrl.href);
-			return publicWorkerUrl;
-		} catch (error) {
-			console.debug("Public worker URL failed:", error);
-			console.error(
-				"When using Vite or other bundlers, you need to manually copy the worker file to your public directory."
-			);
-			console.error(
-				"See documentation at: https://github.com/timpietrusky/wandlerai/blob/main/packages/wandler/worker/README.md"
-			);
-			throw new Error("Worker loading failed in bundled environment. See console for details.");
-		}
-	}
-
-	try {
-		// First try direct import using the package name
-		// This should work when the package is installed from npm
-		const workerUrl = new URL("wandler/worker", import.meta.url);
-		console.debug("Resolved worker URL (method 1):", workerUrl.href);
-		return workerUrl;
-	} catch (error) {
-		console.debug("Method 1 failed:", error);
-
-		try {
-			// Try using a relative path to the built worker
-			// This should work in development and when bundled
-			const workerUrl = new URL("../dist/worker/worker.js", import.meta.url);
-			console.debug("Resolved worker URL (method 2):", workerUrl.href);
-			return workerUrl;
-		} catch (error2) {
-			console.debug("Method 2 failed:", error2);
-
+			// Attempt to fetch the worker code directly
+			const xhr = new XMLHttpRequest();
+			xhr.open("GET", "node_modules/wandler/dist/worker/worker.js", false);
 			try {
-				// Fallback to the development path with JS extension
-				const workerUrl = new URL("../worker/worker.js", import.meta.url);
-				console.debug("Resolved worker URL (method 3):", workerUrl.href);
-				return workerUrl;
-			} catch (error3) {
-				console.debug("Method 3 failed:", error3);
-
-				// Last resort, try the TS file directly (for development)
-				try {
-					const workerUrl = new URL("../worker/worker.ts", import.meta.url);
-					console.debug("Resolved worker URL (method 4):", workerUrl.href);
-					return workerUrl;
-				} catch (error4) {
-					console.debug("Method 4 failed:", error4);
-
-					// If all else fails, throw a helpful error
-					throw new Error(
-						"Could not resolve worker URL. When using bundlers like Vite, you may need to manually copy the worker file to your public directory."
-					);
+				xhr.send();
+				if (xhr.status >= 200 && xhr.status < 300) {
+					// We got the worker code, create an inline worker
+					console.debug("Creating inline worker from fetched code");
+					return createWorkerFromString(xhr.responseText);
 				}
+			} catch (e) {
+				console.debug("Worker fetch failed:", e);
 			}
+		} catch (error) {
+			console.debug("Vite worker fetch failed:", error);
 		}
 	}
+
+	// If all else fails, create a minimal worker as a fallback
+	console.warn("Could not resolve worker URL. Using minimal fallback worker.");
+	console.warn("Functionality will be limited. Check console for more details.");
+	return createWorkerFromString(MINIMAL_WORKER_CODE);
 }
 
 export class WorkerManager {
@@ -119,9 +162,20 @@ export class WorkerManager {
 		}
 
 		try {
-			const workerUrl = getWorkerUrl();
-			console.debug("Creating worker with URL:", workerUrl.href);
-			const bridge = new WorkerBridge(workerUrl);
+			const workerUrlOrInstance = getWorkerUrl();
+
+			let bridge: WorkerBridge;
+
+			if (workerUrlOrInstance instanceof Worker) {
+				// If we got a Worker instance directly (from the fallback)
+				console.debug("Using pre-created worker instance");
+				bridge = new WorkerBridge(workerUrlOrInstance, true);
+			} else {
+				// Otherwise, we got a URL
+				console.debug("Creating worker with URL:", workerUrlOrInstance.href);
+				bridge = new WorkerBridge(workerUrlOrInstance);
+			}
+
 			const worker = bridge.getInstance();
 
 			// Store the worker instance

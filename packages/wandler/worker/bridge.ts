@@ -5,25 +5,42 @@ export class WorkerBridge {
 	private worker: Worker;
 	private isTerminated: boolean;
 	private originalOnMessage: ((e: MessageEvent) => void) | null = null;
-	private workerUrl: string | URL;
+	private workerUrl: string | URL | Worker;
 
-	constructor(workerUrl: string | URL) {
+	constructor(workerUrlOrInstance: string | URL | Worker, isWorkerInstance = false) {
 		this.messageHandlers = new Map();
 		this.isTerminated = false;
-		this.workerUrl = workerUrl;
+		this.workerUrl = workerUrlOrInstance;
 
 		try {
-			console.debug(
-				"Creating worker with URL:",
-				typeof workerUrl === "string" ? workerUrl : workerUrl.href
-			);
-			this.worker = new Worker(workerUrl, { type: "module" });
+			if (isWorkerInstance || workerUrlOrInstance instanceof Worker) {
+				// If we're given a Worker instance directly
+				console.debug("Using provided Worker instance");
+				this.worker = workerUrlOrInstance as Worker;
+			} else {
+				// Otherwise create a new Worker from the URL
+				console.debug(
+					"Creating worker with URL:",
+					typeof workerUrlOrInstance === "string" ? workerUrlOrInstance : workerUrlOrInstance.href
+				);
+				this.worker = new Worker(workerUrlOrInstance as string | URL, { type: "module" });
+			}
+
 			this.setupMessageHandling();
 		} catch (error) {
 			console.error("Failed to create worker:", error);
 			// Re-throw with more context
+			let errorContext = "unknown source";
+			if (typeof workerUrlOrInstance === "string") {
+				errorContext = workerUrlOrInstance;
+			} else if (workerUrlOrInstance instanceof URL) {
+				errorContext = workerUrlOrInstance.href;
+			} else if (workerUrlOrInstance instanceof Worker) {
+				errorContext = "provided Worker instance";
+			}
+
 			throw new Error(
-				`Failed to create worker with URL ${typeof workerUrl === "string" ? workerUrl : workerUrl.href}: ${error instanceof Error ? error.message : String(error)}`
+				`Failed to create worker from ${errorContext}: ${error instanceof Error ? error.message : String(error)}`
 			);
 		}
 	}
@@ -58,10 +75,15 @@ export class WorkerBridge {
 
 		this.worker.onerror = (e: ErrorEvent) => {
 			console.error("Worker error:", e);
-			console.error(
-				"Worker URL was:",
-				typeof this.workerUrl === "string" ? this.workerUrl : this.workerUrl.href
-			);
+
+			// Log the worker source
+			if (this.workerUrl instanceof Worker) {
+				console.error("Worker was created from a Worker instance");
+			} else if (typeof this.workerUrl === "string") {
+				console.error("Worker URL was:", this.workerUrl);
+			} else if (this.workerUrl instanceof URL) {
+				console.error("Worker URL was:", this.workerUrl.href);
+			}
 
 			// Create a more detailed error message
 			const errorMessage = `Worker error: ${e.message}. File: ${e.filename}, Line: ${e.lineno}, Col: ${e.colno}`;
