@@ -1,5 +1,12 @@
 # wandler
 
+## 1.0.0-alpha.5
+
+### Major Changes
+
+- - fix(worker): don't use relative path
+  - feat: expose "selectBestDevice"
+
 ## 1.0.0-alpha.4
 
 ### Major Changes

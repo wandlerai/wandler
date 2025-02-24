@@ -4,7 +4,6 @@ export { selectBestDevice } from "@wandler/utils/device-utils";
 export { generateText } from "@wandler/utils/generate-text";
 export { loadModel } from "@wandler/utils/load";
 export { streamText } from "@wandler/utils/stream-text";
-export { canUseWorker, testWorkerLoading } from "@wandler/utils/worker-test";
 
 // Types
 export type {
