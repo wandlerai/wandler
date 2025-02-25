@@ -9,7 +9,7 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"wandler": "^1.0.0-alpha.7"
+		"wandler": "^1.0.0-alpha.8"
 	},
 	"devDependencies": {
 		"vite": "^5.4.14"

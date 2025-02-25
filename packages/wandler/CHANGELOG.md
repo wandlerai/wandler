@@ -1,5 +1,11 @@
 # wandler
 
+## 1.0.0-alpha.8
+
+### Major Changes
+
+- fix(worker): maybe this time?
+
 ## 1.0.0-alpha.7
 
 ### Major Changes
