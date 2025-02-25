@@ -16,6 +16,7 @@ export default defineConfig({
 			fileName: format => `index.${format === "es" ? "js" : "umd.cjs"}`,
 		},
 		outDir: resolve(__dirname, "dist"),
+		emptyOutDir: true,
 		sourcemap: true,
 		rollupOptions: {
 			external: ["@huggingface/transformers"],
@@ -30,5 +31,8 @@ export default defineConfig({
 		alias: {
 			"@wandler": resolve(__dirname, "."),
 		},
+	},
+	worker: {
+		format: "es", // Use ES modules for workers
 	},
 });

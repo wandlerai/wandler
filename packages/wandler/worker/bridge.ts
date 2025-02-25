@@ -140,6 +140,7 @@ export class WorkerBridge {
 			worker: this.worker,
 			bridge: this,
 			terminate: () => this.terminate(),
+			sendMessage: (message: WorkerMessage) => this.sendMessage(message),
 		};
 	}
 }

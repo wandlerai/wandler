@@ -46,3 +46,7 @@ next-env.d.ts
 # playwright
 playwright-report
 test-results
+
+# yalc
+.yalc
+yalc.lock

@@ -4,11 +4,14 @@ import { defineConfig } from "vite";
 export default defineConfig({
 	build: {
 		lib: {
-			entry: resolve(__dirname, "worker/worker.ts"),
+			entry: {
+				worker: resolve(__dirname, "worker/worker.ts"),
+			},
 			formats: ["es"],
-			fileName: () => "worker.js",
+			fileName: (_, entryName) => `${entryName}.js`,
 		},
 		outDir: resolve(__dirname, "dist/worker"),
+		emptyOutDir: true,
 		sourcemap: true,
 		rollupOptions: {
 			external: ["@huggingface/transformers"],
@@ -17,9 +20,9 @@ export default defineConfig({
 					"@huggingface/transformers": "transformers",
 				},
 				format: "es",
-				inlineDynamicImports: true,
 			},
 		},
+		minify: false,
 	},
 	resolve: {
 		alias: {

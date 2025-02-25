@@ -75,6 +75,7 @@ export interface WorkerInstance {
 	bridge: WorkerBridge;
 	worker: Worker;
 	terminate(): void;
+	sendMessage(message: WorkerMessage): Promise<WorkerResponse>;
 }
 
 export interface WorkerBridge {
