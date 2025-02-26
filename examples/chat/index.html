@@ -5,49 +5,169 @@
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Wandler Chat Demo</title>
 		<style>
+			:root {
+				--header-height: 60px;
+				--input-height: 60px;
+				--padding: 16px;
+			}
+
+			* {
+				box-sizing: border-box;
+				margin: 0;
+				padding: 0;
+			}
+
+			html,
 			body {
+				height: 100%;
+				overflow: hidden;
 				font-family:
 					system-ui,
 					-apple-system,
 					sans-serif;
+			}
+
+			.app {
+				position: fixed;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				display: flex;
+				flex-direction: column;
 				max-width: 800px;
 				margin: 0 auto;
-				padding: 2rem;
-				line-height: 1.5;
+				height: 100%;
 			}
-			#chat {
-				white-space: pre-wrap;
-				background: #f5f5f5;
-				padding: 1rem;
-				border-radius: 4px;
-				margin-bottom: 1rem;
-				min-height: 300px;
-				overflow-y: auto;
-			}
-			.input-container {
+
+			.header {
+				height: var(--header-height);
+				padding: var(--padding);
 				display: flex;
-				gap: 0.5rem;
+				align-items: center;
+				border-bottom: 1px solid #eee;
 			}
+
+			.chat-container {
+				position: absolute;
+				top: var(--header-height);
+				bottom: var(--input-height);
+				width: 100%;
+				overflow: hidden;
+			}
+
+			#chat {
+				height: 100%;
+				width: 100%;
+				overflow-y: auto;
+				padding: var(--padding);
+				background: #f5f5f5;
+				-ms-overflow-style: none; /* Hide scrollbar for IE and Edge */
+				scrollbar-width: thin; /* Thin scrollbar for Firefox */
+			}
+
+			#chat::-webkit-scrollbar {
+				width: 6px; /* Width of the scrollbar */
+			}
+
+			#chat::-webkit-scrollbar-thumb {
+				background-color: #ccc; /* Color of the scrollbar handle */
+				border-radius: 3px; /* Rounded corners */
+			}
+
+			.input-container {
+				position: absolute;
+				bottom: 0;
+				left: 0;
+				right: 0;
+				height: var(--input-height);
+				padding: var(--padding);
+				display: flex;
+				gap: 8px;
+				background: white;
+				border-top: 1px solid #eee;
+			}
+
 			#userInput {
 				flex: 1;
-				padding: 0.5rem;
-				font-size: 1rem;
+				padding: 8px 12px;
+				font-size: 16px;
+				border: 1px solid #ddd;
+				border-radius: 4px;
 			}
+
 			#sendBtn {
-				padding: 0.5rem 1rem;
+				padding: 8px 16px;
+				background: #0066ff;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
 			}
-			.status {
-				color: #666;
-				font-style: italic;
+
+			#sendBtn:disabled {
+				background: #cccccc;
+				cursor: not-allowed;
+			}
+
+			.message {
+				margin-bottom: 12px;
+				padding: 8px 12px;
+				border-radius: 4px;
+				background: white;
+				word-wrap: break-word;
+				max-width: 100%;
+				box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+			}
+
+			.user-message {
+				background: #e1f5fe;
+				align-self: flex-end;
+			}
+
+			.ai-message {
+				background: white;
+			}
+
+			.system-message {
+				background: #fff3e0;
+				color: #e65100;
+			}
+
+			.cursor {
+				display: inline-block;
+				width: 0.5em;
+				height: 1.2em;
+				background: #333;
+				vertical-align: middle;
+				animation: blink 1s step-end infinite;
+			}
+
+			@keyframes blink {
+				50% {
+					opacity: 0;
+				}
+			}
+
+			.message-content {
+				white-space: pre-wrap;
+				word-wrap: break-word;
+				overflow-wrap: break-word;
 			}
 		</style>
 	</head>
 	<body>
-		<h1>Wandler Chat</h1>
-		<div id="chat"></div>
-		<div class="input-container">
-			<input type="text" id="userInput" placeholder="Type your message..." disabled />
-			<button id="sendBtn" disabled>Send</button>
+		<div class="app">
+			<div class="header">
+				<h1>Wandler Chat</h1>
+			</div>
+			<div class="chat-container">
+				<div id="chat"></div>
+			</div>
+			<div class="input-container">
+				<input type="text" id="userInput" placeholder="Type your message..." disabled />
+				<button id="sendBtn" disabled>Send</button>
+			</div>
 		</div>
 
 		<script type="module">
@@ -57,31 +177,78 @@
 			const userInput = document.getElementById("userInput");
 			const sendBtn = document.getElementById("sendBtn");
 
-			let ai;
+			let model;
 			const messages = [];
+			let abortController = null;
+
+			// Track if we should auto-scroll
+			let shouldAutoScroll = true;
+
+			// Detect when user scrolls up
+			chat.addEventListener("scroll", () => {
+				// If we're more than 100px from the bottom, user has scrolled up
+				const isNearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 100;
+				shouldAutoScroll = isNearBottom;
+			});
+
+			// Safe scroll to bottom that doesn't interfere with user scrolling
+			function scrollToBottomIfNeeded() {
+				if (shouldAutoScroll) {
+					// Use requestAnimationFrame for smoother scrolling
+					requestAnimationFrame(() => {
+						chat.scrollTop = chat.scrollHeight;
+					});
+				}
+			}
 
 			function addMessage(role, content) {
 				messages.push({ role, content });
+
 				const div = document.createElement("div");
-				div.textContent = `${role === "user" ? "You" : "AI"}: ${content}`;
+				div.className = "message";
+
+				// Add specific class based on role
+				if (role === "user") {
+					div.classList.add("user-message");
+					div.textContent = `You: ${content}`;
+				} else if (role === "assistant") {
+					div.classList.add("ai-message");
+					div.textContent = `AI: ${content}`;
+				} else {
+					div.classList.add("system-message");
+					div.textContent = content;
+				}
+
 				chat.appendChild(div);
-				chat.scrollTop = chat.scrollHeight;
+				scrollToBottomIfNeeded();
+
+				return div;
 			}
 
 			// Initialize on page load
-			chat.textContent = "Initializing model...";
+			const loadingMsg = document.createElement("div");
+			loadingMsg.className = "message system-message";
+			loadingMsg.textContent = "Initializing model...";
+			chat.appendChild(loadingMsg);
+
 			try {
-				ai = await loadModel("onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX", {
-					onProgress: status => {
-						chat.textContent = status;
+				model = await loadModel("onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX", {
+					onProgress: info => {
+						if (info.status === "progress") {
+							loadingMsg.textContent = `Loading: ${Math.round(info.loaded / 1024 / 1024)}MB / ${Math.round(info.total / 1024 / 1024)}MB`;
+						}
 					},
 				});
 
-				chat.textContent = "";
+				// Remove loading message
+				chat.removeChild(loadingMsg);
+
+				// Enable input
 				userInput.disabled = false;
 				sendBtn.disabled = false;
+				userInput.focus();
 			} catch (error) {
-				chat.textContent = `Error loading model: ${error.message}`;
+				loadingMsg.textContent = `Error loading model: ${error.message}`;
 				console.error(error);
 			}
 
@@ -93,43 +260,96 @@
 				userInput.disabled = true;
 				sendBtn.disabled = true;
 
+				// Always scroll to bottom when sending a new message
+				shouldAutoScroll = true;
 				addMessage("user", text);
 
 				try {
-					const result = await streamText({
-						model: ai,
-						messages,
-					});
-
 					// Create a new message div for the response
 					const div = document.createElement("div");
-					div.textContent = "AI: ";
+					div.className = "message ai-message";
+
+					// Create a content container for the message
+					const contentSpan = document.createElement("span");
+					contentSpan.className = "message-content";
+					contentSpan.textContent = "AI: ";
+
+					// Create a cursor element
+					const cursor = document.createElement("span");
+					cursor.className = "cursor";
+
+					// Append content and cursor to the message div
+					div.appendChild(contentSpan);
+					contentSpan.appendChild(cursor);
+
+					// Add the message to the chat
 					chat.appendChild(div);
+					scrollToBottomIfNeeded();
 
 					let fullResponse = "";
 
+					// Create new abort controller
+					abortController = new AbortController();
+
+					// Use the streamText API with onChunk callback
+					const { result } = await streamText({
+						model,
+						messages,
+						abortSignal: abortController.signal,
+						onChunk: chunk => {
+							if (chunk.type === "text-delta") {
+								const text = chunk.text;
+								if (text) {
+									fullResponse += text;
+
+									// Only insert if cursor is still in the DOM
+									if (cursor.parentNode === contentSpan) {
+										// Insert text before the cursor
+										contentSpan.insertBefore(document.createTextNode(text), cursor);
+									} else {
+										contentSpan.appendChild(document.createTextNode(text));
+									}
+
+									scrollToBottomIfNeeded();
+								}
+							}
+						},
+					});
+
 					try {
-						// Stream the response
-						for await (const token of result) {
-							fullResponse += token;
-							div.textContent = `AI: ${fullResponse}`;
-							chat.scrollTop = chat.scrollHeight;
+						// Wait for the final result
+						await result;
+
+						// Remove the cursor when done
+						if (cursor.parentNode === contentSpan) {
+							cursor.remove();
 						}
 
 						// Add the complete response to messages
 						messages.push({ role: "assistant", content: fullResponse });
 					} catch (error) {
 						console.error("Streaming error:", error);
-						div.textContent = `AI: Error during response generation: ${error.message}`;
+
+						// Remove cursor if it exists
+						if (cursor.parentNode === contentSpan) {
+							cursor.remove();
+						}
+
+						if (error.name === "AbortError" || error.message.toLowerCase().includes("abort")) {
+							contentSpan.textContent = `AI: ${fullResponse} (Aborted)`;
+						} else {
+							contentSpan.textContent = `AI: Error during response generation: ${error.message}`;
+						}
 					}
 				} catch (error) {
 					console.error("Generation error:", error);
 					addMessage("system", `Error: ${error.message}`);
+				} finally {
+					abortController = null;
+					userInput.disabled = false;
+					sendBtn.disabled = false;
+					userInput.focus();
 				}
-
-				userInput.disabled = false;
-				sendBtn.disabled = false;
-				userInput.focus();
 			}
 
 			sendBtn.onclick = handleSend;

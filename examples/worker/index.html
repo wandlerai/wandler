@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Wandler Worker Example</title>
+		<style>
+			body {
+				font-family:
+					system-ui,
+					-apple-system,
+					BlinkMacSystemFont,
+					"Segoe UI",
+					Roboto,
+					Oxygen,
+					Ubuntu,
+					Cantarell,
+					"Open Sans",
+					"Helvetica Neue",
+					sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 20px;
+				line-height: 1.6;
+			}
+			h1 {
+				color: #333;
+				border-bottom: 1px solid #eee;
+				padding-bottom: 10px;
+			}
+			button {
+				background-color: #4caf50;
+				border: none;
+				color: white;
+				padding: 10px 20px;
+				text-align: center;
+				text-decoration: none;
+				display: inline-block;
+				font-size: 16px;
+				margin: 10px 2px;
+				cursor: pointer;
+				border-radius: 5px;
+			}
+			button:disabled {
+				background-color: #cccccc;
+				cursor: not-allowed;
+			}
+			#log {
+				margin-top: 20px;
+				height: 300px;
+				overflow-y: auto;
+				border: 1px solid #ddd;
+				padding: 10px;
+				background-color: #f9f9f9;
+			}
+			.success {
+				color: green;
+			}
+			.error {
+				color: red;
+			}
+			.info {
+				color: blue;
+			}
+			.progress-container {
+				margin-top: 10px;
+				width: 100%;
+				background-color: #f1f1f1;
+				border-radius: 5px;
+			}
+			.progress-bar {
+				height: 20px;
+				background-color: #4caf50;
+				border-radius: 5px;
+				width: 0%;
+				transition: width 0.3s;
+			}
+			.progress-text {
+				text-align: center;
+				margin-top: 5px;
+			}
+			.input-container {
+				margin-top: 20px;
+			}
+			textarea {
+				width: 100%;
+				padding: 10px;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+				resize: vertical;
+				min-height: 80px;
+			}
+			.output-container {
+				margin-top: 20px;
+				padding: 10px;
+				border: 1px solid #ddd;
+				border-radius: 5px;
+				background-color: #f9f9f9;
+				min-height: 80px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Wandler Worker Example</h1>
+
+		<p>This example demonstrates how to use the Wandler worker functionality with a real model.</p>
+
+		<div>
+			<button id="loadModel">Load Model</button>
+			<button id="generateText" disabled>Generate Text</button>
+			<button id="clearLog">Clear Log</button>
+		</div>
+
+		<div class="progress-container" id="progressContainer" style="display: none">
+			<div class="progress-bar" id="progressBar"></div>
+			<div class="progress-text" id="progressText">0%</div>
+		</div>
+
+		<div class="input-container">
+			<textarea id="userInput" placeholder="Enter your prompt here...">
+What is artificial intelligence?</textarea
+			>
+		</div>
+
+		<div class="output-container" id="outputText"></div>
+
+		<div id="log"></div>
+
+		<script type="module">
+			// Import the necessary functions from the wandler package
+			import { loadModel, generateText, selectBestDevice } from "wandler";
+
+			const logElement = document.getElementById("log");
+			const loadModelButton = document.getElementById("loadModel");
+			const generateTextButton = document.getElementById("generateText");
+			const clearLogButton = document.getElementById("clearLog");
+			const progressContainer = document.getElementById("progressContainer");
+			const progressBar = document.getElementById("progressBar");
+			const progressText = document.getElementById("progressText");
+			const userInput = document.getElementById("userInput");
+			const outputText = document.getElementById("outputText");
+
+			// Store the loaded model
+			let model = null;
+
+			function log(message, type = "info") {
+				const entry = document.createElement("div");
+				entry.classList.add(type);
+				entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+				logElement.appendChild(entry);
+				logElement.scrollTop = logElement.scrollHeight;
+			}
+
+			clearLogButton.addEventListener("click", () => {
+				logElement.innerHTML = "";
+			});
+
+			// Load model button
+			loadModelButton.addEventListener("click", async () => {
+				try {
+					loadModelButton.disabled = true;
+					progressContainer.style.display = "block";
+					outputText.textContent = "";
+
+					log("Selecting best device...");
+					const device = await selectBestDevice();
+					log(`Using device: ${device.type}`, "info");
+
+					// Small model that loads quickly for demo purposes
+					const modelPath = "onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX";
+
+					log(`Loading model: ${modelPath}...`);
+
+					// Load the model with progress tracking
+					model = await loadModel(modelPath, {
+						onProgress: info => {
+							if (info.status === "progress") {
+								const percent = Math.round((info.loaded / info.total) * 100);
+								progressBar.style.width = `${percent}%`;
+								progressText.textContent = `${percent}% (${(info.loaded / 1024 / 1024).toFixed(1)}MB / ${(info.total / 1024 / 1024).toFixed(1)}MB)`;
+								log(`Loading progress: ${percent}%`);
+							} else if (info.status === "ready") {
+								log("Model is ready", "success");
+							}
+						},
+					});
+
+					log("Model loaded successfully!", "success");
+					generateTextButton.disabled = false;
+				} catch (error) {
+					log(`Error loading model: ${error.message}`, "error");
+					console.error("Model loading failed:", error);
+				} finally {
+					loadModelButton.disabled = false;
+				}
+			});
+
+			// Generate text button
+			generateTextButton.addEventListener("click", async () => {
+				if (!model) {
+					log("Please load a model first", "error");
+					return;
+				}
+
+				try {
+					generateTextButton.disabled = true;
+					userInput.disabled = true;
+					outputText.textContent = "";
+
+					const prompt = userInput.value.trim();
+					if (!prompt) {
+						log("Please enter a prompt", "error");
+						return;
+					}
+
+					log(`Generating text for prompt: "${prompt}"`);
+
+					// Prepare the messages
+					const messages = [{ role: "user", content: prompt }];
+
+					// Generate text
+					const result = await generateText({
+						model,
+						messages,
+						max_new_tokens: 256,
+						temperature: 0.7,
+						top_p: 0.95,
+					});
+
+					log("Text generation complete", "success");
+					outputText.textContent = result.text;
+				} catch (error) {
+					log(`Error generating text: ${error.message}`, "error");
+					console.error("Text generation failed:", error);
+				} finally {
+					generateTextButton.disabled = false;
+					userInput.disabled = false;
+				}
+			});
+
+			// Log initial info
+			log("Page loaded. Click the 'Load Model' button to start.");
+		</script>
+	</body>
+</html>
