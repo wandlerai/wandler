@@ -1,5 +1,11 @@
 # wandler
 
+## 1.0.0-alpha.9
+
+### Minor Changes
+
+- fix(worker): use vite's "inline worker" to load the worker
+
 ## 1.0.0-alpha.8
 
 ### Major Changes
