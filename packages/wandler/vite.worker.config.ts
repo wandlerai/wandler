@@ -10,9 +10,9 @@ export default defineConfig({
 			formats: ["es"],
 			fileName: (_, entryName) => `${entryName}.js`,
 		},
-		outDir: resolve(__dirname, "dist/worker"),
-		emptyOutDir: true,
-		sourcemap: true,
+		outDir: resolve(__dirname, "dist/assets"),
+		emptyOutDir: false,
+		sourcemap: false,
 		rollupOptions: {
 			external: ["@huggingface/transformers"],
 			output: {
