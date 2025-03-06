@@ -1,5 +1,11 @@
 # wandler
 
+## 1.0.0-alpha.10
+
+### Major Changes
+
+- - added useChat
+
 ## 1.0.0-alpha.9
 
 ### Minor Changes
