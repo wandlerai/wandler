@@ -1,6 +1,6 @@
 {
 	"name": "@wandler/react",
-	"version": "1.0.0-alpha.1",
+	"version": "1.0.0-alpha.2",
 	"description": "React components and hooks for Wandler",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -33,7 +33,7 @@
 	"dependencies": {
 		"@types/uuid": "^10.0.0",
 		"uuid": "^11.1.0",
-		"wandler": "^1.0.0-alpha.10"
+		"wandler": "^1.0.0-alpha.11"
 	},
 	"peerDependencies": {
 		"react": ">=18.0.0",
