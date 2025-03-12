@@ -8,14 +8,33 @@
    - Worker Communication Layer (`worker.ts`)
    - Core Transformer.js Layer (`transformers.ts`)
 
-2. **Module Organization**
-   ```
-   packages/wandler/
-   ├── types/         # Core type definitions
-   ├── utils/         # Shared utilities and core functions
-   ├── worker/        # Worker-related code
-   └── providers/     # Model provider implementations
-   ```
+2. **Monorepo Organization**
+
+   - The Wandler project is organized as a monorepo with multiple packages:
+     ```
+     wandlerai/
+     ├── wandler/                      # Root project directory
+     │   ├── packages/                 # Contains all packages
+     │   │   ├── wandler/              # Core WebGPU transformer model package
+     │   │   │   ├── types/            # Core type definitions
+     │   │   │   ├── utils/            # Shared utilities and core functions
+     │   │   │   ├── worker/           # Worker-related code
+     │   │   │   └── providers/        # Model provider implementations
+     │   │   └── react/                # React hooks and components
+     │   └── tests/                    # Test files
+     └── site/                         # Demo website showcasing Wandler
+     ```
+   - Package relationships:
+
+     - `wandler` - Core package for WebGPU-based transformer models (located at
+       `wandlerai/wandler/packages/wandler`)
+     - `@wandler/react` - React hooks and components that depend on the core package (located at
+       `wandlerai/wandler/packages/react`)
+     - `site` - Frontend application that consumes both packages
+
+   - **Important Note**: When you see references to folders like `types/`, `utils/`, or `worker/` in
+     this document, these are located under `wandlerai/wandler/packages/wandler/`, not directly
+     under `wandlerai/wandler/`.
 
 ## Code Style & Patterns
 
@@ -47,6 +66,39 @@
    	throw new Error(`Context: ${error.message}`);
    }
    ```
+
+## Package Building & TypeScript Declarations
+
+1. **Build Configuration**
+
+   - All packages must generate proper TypeScript declaration files
+   - Use a dual-tool approach for building packages:
+     - Bundler (Vite/Rollup) for JavaScript output
+     - TypeScript compiler for declaration files
+   - Never include source maps in production builds
+
+2. **Package.json Configuration**
+
+   - Specify the types field for TypeScript support:
+     ```json
+     "main": "./dist/index.js",
+     "module": "./dist/index.js",
+     "types": "./dist/index.d.ts",
+     "exports": {
+       ".": {
+         "import": "./dist/index.js",
+         "types": "./dist/index.d.ts"
+       }
+     }
+     ```
+
+3. **Type Exports**
+   - Always export all public types from the main entry point
+   - Use explicit type exports in index.ts:
+     ```typescript
+     export type { UseChatOptions, Message } from "./hooks/useChat";
+     ```
+   - Ensure interfaces are properly documented with JSDoc
 
 ## Core Concepts
 
@@ -330,9 +382,11 @@ pitfalls when working with the codebase.
 
 1. **Single Source of Truth**
 
-   - Core generation logic lives in `transformers.ts` only
-   - Types are defined in `types/` and imported everywhere
-   - Generation defaults are in `generation-defaults.ts`
+   - Core generation logic lives in `transformers.ts` only (located at
+     `packages/wandler/utils/transformers.ts`)
+   - Types are defined in `packages/wandler/types/` and imported everywhere using `@wandler/types/`
+   - Generation defaults are in `generation-defaults.ts` (located at
+     `packages/wandler/utils/generation-defaults.ts`)
 
    ```typescript
    // Good: Import from types
@@ -345,9 +399,9 @@ pitfalls when working with the codebase.
 2. **Utility Functions**
 
    - Common operations have dedicated utility functions:
-     - `prepareMessages` in `message-utils.ts`
-     - `prepareGenerationConfig` in `generation-utils.ts`
-     - `validateGenerationConfig` in `generation-utils.ts`
+     - `prepareMessages` in `packages/wandler/utils/message-utils.ts`
+     - `prepareGenerationConfig` in `packages/wandler/utils/generation-utils.ts`
+     - `validateGenerationConfig` in `packages/wandler/utils/generation-utils.ts`
    - Never copy-paste utility functions between files
 
 3. **Configuration Management**
@@ -372,7 +426,7 @@ pitfalls when working with the codebase.
    - Model capabilities are defined once and reused
 
    ```typescript
-   // In types/generation.ts
+   // In packages/wandler/types/generation.ts
    interface BaseGenerationOptions {
    	// Shared options
    }
@@ -402,12 +456,12 @@ pitfalls when working with the codebase.
 
 6. **Worker Communication**
 
-   - Message types are defined once in `worker/types.ts`
+   - Message types are defined once in `packages/wandler/worker/types.ts`
    - Response handling is consistent across all worker operations
    - Worker bridge pattern is reused for all worker communication
 
    ```typescript
-   // In worker/types.ts
+   // In packages/wandler/worker/types.ts
    export type WorkerMessageType = "load" | "generate" | "stream";
    export type WorkerResponseType = "loaded" | "generated" | "stream" | "error";
    ```
@@ -498,6 +552,9 @@ functionality exists in exactly one place. When making changes:
    }
    ```
 
+   This path mapping means that when you import from `@wandler/utils/transformers`, it resolves to
+   `./packages/wandler/utils/transformers` in the project structure.
+
 4. **Exception for Tests**
 
    ```typescript
@@ -509,7 +566,7 @@ functionality exists in exactly one place. When making changes:
 5. **Package Exports**
 
    ```typescript
-   // In wandler/index.ts - Public API exports
+   // In packages/wandler/index.ts - Public API exports
    export { generateText } from "@wandler/utils/generate-text";
    export { streamText } from "@wandler/utils/stream-text";
    export type { Message } from "@wandler/types/message";
