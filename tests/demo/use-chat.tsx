@@ -2,7 +2,7 @@ import { marked } from "marked";
 import React, { useState } from "react";
 // eslint-disable-next-line import/no-internal-modules
 import ReactDOM from "react-dom/client";
-import { StickToBottom, useStickToBottomContext } from 'use-stick-to-bottom';
+import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 
 // DONT CHANGE THESE IMPORTS!
 import { Message, useChat } from "../../packages/react/index";
@@ -16,18 +16,15 @@ const AVAILABLE_MODELS = [
 
 // ScrollToBottom component that uses the StickToBottom context
 function ScrollToBottom() {
-  const { isAtBottom, scrollToBottom } = useStickToBottomContext();
+	const { isAtBottom, scrollToBottom } = useStickToBottomContext();
 
-  return (
-    !isAtBottom && (
-      <button
-        className="scroll-to-bottom-btn"
-        onClick={() => scrollToBottom()}
-      >
-        ↓
-      </button>
-    )
-  );
+	return (
+		!isAtBottom && (
+			<button className="scroll-to-bottom-btn" onClick={() => scrollToBottom()}>
+				↓
+			</button>
+		)
+	);
 }
 
 // Function to render markdown content
@@ -44,10 +41,10 @@ function MessageBubble({
 	isStreaming?: boolean;
 }) {
 	const isUser = message.role === "user";
-	const hasReasoning = message.parts?.some((part) => part.type === "reasoning");
+	const hasReasoning = message.parts?.some(part => part.type === "reasoning");
 
 	// Get reasoning content if it exists
-	const reasoningPart = message.parts?.find((part) => part.type === "reasoning");
+	const reasoningPart = message.parts?.find(part => part.type === "reasoning");
 	const reasoningContent = reasoningPart?.reasoning || "";
 
 	// Get main content
@@ -97,10 +94,14 @@ function App() {
 			// Load the model with progress callback
 			const loadedModel = await loadModel(selectedModel, {
 				onProgress: (progress: ProgressInfo) => {
-					const percentage = Math.round(
-						(progress.loaded / progress.total) * 100
-					);
-					setLoadingProgress(percentage);
+					// Ensure we have valid numbers before calculating percentage
+					if (progress.total && progress.loaded) {
+						const percentage = Math.round((progress.loaded / progress.total) * 100);
+						setLoadingProgress(isNaN(percentage) ? 0 : percentage);
+					} else {
+						// If we don't have valid numbers, show indeterminate progress
+						setLoadingProgress(0);
+					}
 				},
 			});
 
@@ -116,8 +117,7 @@ function App() {
 		<div>
 			<h1>Wandler Chat Demo</h1>
 			<p>
-				This demo showcases the <code>useChat</code> hook from the Wandler React
-				package.
+				This demo showcases the <code>useChat</code> hook from the Wandler React package.
 			</p>
 
 			<div className="model-selector">
@@ -127,7 +127,7 @@ function App() {
 					onChange={handleModelChange}
 					disabled={isLoading}
 				>
-					{AVAILABLE_MODELS.map((model) => (
+					{AVAILABLE_MODELS.map(model => (
 						<option key={model.value} value={model.value}>
 							{model.label}
 						</option>
@@ -136,10 +136,7 @@ function App() {
 			</div>
 
 			{model ? (
-				<ChatDemo
-					model={model}
-					isModelLoaded={true}
-				/>
+				<ChatDemo model={model} isModelLoaded={true} />
 			) : (
 				<ChatDemo
 					model={null as unknown as BaseModel}
@@ -153,12 +150,12 @@ function App() {
 	);
 }
 
-function ChatDemo({ 
-	model, 
-	onLoadModel, 
-	isModelLoaded = false, 
+function ChatDemo({
+	model,
+	onLoadModel,
+	isModelLoaded = false,
 	isLoading = false,
-	loadingProgress = 0
+	loadingProgress = 0,
 }: {
 	model: BaseModel;
 	onLoadModel?: () => void;
@@ -171,15 +168,13 @@ function ChatDemo({
 		input,
 		handleSubmit,
 		handleInputChange,
-		isLoading: isGenerating,
 		stop,
 		clearMessages: clearChat,
 		status,
-		error: _error, // Rename to _error to indicate it's unused
 	} = useChat({
 		model,
 	});
-	
+
 	// Create a wrapper function for textarea events
 	const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		// Call the original handleInputChange with the event
@@ -191,9 +186,9 @@ function ChatDemo({
 		// If Enter is pressed without Shift, submit the form
 		if (e.key === "Enter" && !e.shiftKey) {
 			e.preventDefault();
-			
+
 			// Only submit if there's content and we're not already generating
-			if (input.trim() && !isGenerating) {
+			if (input.trim() && status !== "streaming") {
 				handleSubmit(e as unknown as React.FormEvent<HTMLFormElement>);
 			}
 		}
@@ -207,12 +202,15 @@ function ChatDemo({
 					<div className="chat-header">
 						<div className="model-info">
 							<div className="model-name">{model.name}</div>
-							<div className="model-status">Status: {status}</div>
+							<div className={`model-status status-${status}`}>
+								Status: {status}
+								{status === "streaming" && <span className="streaming-dot"></span>}
+							</div>
 						</div>
 						<div className="actions">
-							<button 
-								onClick={clearChat} 
-								disabled={isGenerating || messages.length === 0}
+							<button
+								onClick={clearChat}
+								disabled={status === "streaming" || messages.length === 0}
 								className="clear-chat-btn"
 							>
 								Clear
@@ -220,51 +218,64 @@ function ChatDemo({
 						</div>
 					</div>
 
-					<StickToBottom className="chat-messages" resize="smooth" initial="smooth">
-						<StickToBottom.Content>
-							{messages.map((message: Message) => {
-								return (
-									<MessageBubble
-										key={message.id}
-										message={message}
-										isStreaming={status === "streaming" && message.role === "assistant" && messages[messages.length - 1] === message}
-									/>
-								);
-							})}
-						</StickToBottom.Content>
-					</StickToBottom>
+					<div className="chat-body">
+						<StickToBottom className="chat-messages-container" resize="smooth" initial="smooth">
+							<StickToBottom.Content>
+								<div className="chat-messages">
+									{messages.map((message: Message) => (
+										<MessageBubble
+											key={message.id}
+											message={message}
+											isStreaming={
+												status === "streaming" &&
+												message.role === "assistant" &&
+												messages[messages.length - 1] === message
+											}
+										/>
+									))}
+								</div>
+							</StickToBottom.Content>
 
-					<div className="chat-input">
-						<form onSubmit={handleSubmit}>
-							<textarea
-								className="message-input"
-								placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
-								value={input}
-								onChange={handleTextareaChange}
-								onKeyDown={handleKeyDown}
-								disabled={isGenerating}
-							/>
-							<button
-								type="submit"
-								className={isGenerating ? "stop-button" : "send-button"}
-								disabled={isGenerating ? false : !input.trim()}
-								onClick={isGenerating ? stop : undefined}
-							>
-								{isGenerating ? "Stop" : "Send"}
-							</button>
-						</form>
+							<ScrollToBottom />
+						</StickToBottom>
+
+						<div className="chat-input">
+							<form onSubmit={handleSubmit}>
+								<textarea
+									className="message-input"
+									placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+									value={input}
+									onChange={handleTextareaChange}
+									onKeyDown={handleKeyDown}
+									disabled={status === "streaming"}
+								/>
+								<button
+									type="submit"
+									className={status === "streaming" ? "stop-button" : "send-button"}
+									disabled={status === "streaming" ? false : !input.trim()}
+									onClick={e => {
+										if (status === "streaming") {
+											e.preventDefault(); // Prevent form submission
+											stop();
+										}
+									}}
+								>
+									{status === "streaming" ? "Stop" : "Send"}
+								</button>
+							</form>
+						</div>
 					</div>
 				</>
 			)}
 
 			{!isModelLoaded ? (
 				<div className="load-model-container">
-					<button
-						onClick={onLoadModel}
-						disabled={isLoading}
-						className="load-model-btn"
-					>
-						{isLoading ? `Loading (${loadingProgress}%)` : "Load Model"}
+					<button onClick={onLoadModel} disabled={isLoading} className="load-model-btn">
+						{isLoading
+							? loadingProgress > 0
+								? `Loading (${loadingProgress}%)`
+								: "Loading..."
+							: "Load Model"}
 					</button>
 				</div>
 			) : null}
@@ -274,7 +285,7 @@ function ChatDemo({
 
 // Render the app
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+	<React.StrictMode>
+		<App />
+	</React.StrictMode>
 );
