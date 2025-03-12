@@ -10,6 +10,7 @@
 		"resolveJsonModule": true,
 		"isolatedModules": true,
 		"declaration": true,
+		"declarationMap": false,
 		"emitDeclarationOnly": true,
 		"outDir": "dist",
 		"strict": true,
@@ -20,7 +21,9 @@
 		"paths": {
 			"@wandler": ["./index.ts"],
 			"@wandler/*": ["./*"]
-		}
+		},
+		"composite": true,
+		"rootDir": "."
 	},
 	"include": ["**/*.ts"]
 }

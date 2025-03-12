@@ -1,10 +1,8 @@
-// Coming soon: React components and hooks for Wandler
+// React components and hooks for Wandler
 export const version = "0.0.0";
 
-// Export hooks
+// Export hooks and React-specific types only
 export type {
-	BaseModel,
-	ExtendedMessage,
 	GenerationConfig,
 	Message,
 	StreamChunk,

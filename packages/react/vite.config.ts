@@ -10,7 +10,7 @@ export default defineConfig({
 			formats: ["es", "umd"],
 		},
 		outDir: resolve(__dirname, "dist"),
-		sourcemap: true,
+		sourcemap: false,
 		rollupOptions: {
 			external: ["react", "react-dom", "wandler"],
 			output: {

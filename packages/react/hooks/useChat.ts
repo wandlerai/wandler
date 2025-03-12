@@ -1,37 +1,105 @@
+// External dependencies
+import type { BaseModel, Message as BaseMessage } from "wandler";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-// @ts-ignore - Import wandler directly
 import { streamText } from "wandler";
 
 /**
- * Basic message type
+ * Message part types
  */
-export interface Message {
-	role: "user" | "assistant" | "system";
-	content: string;
+export type MessagePartType = "text" | "reasoning" | "tool_call" | "source";
+
+/**
+ * Base message part interface
+ */
+export interface MessagePart {
+	type: MessagePartType;
 }
 
 /**
- * Extended message type with additional properties for chat UI
+ * Text message part
  */
-export interface ExtendedMessage {
-	id: string;
-	role: "user" | "assistant" | "system";
-	content: string;
-	isComplete?: boolean;
-	timestamp: number;
-	metadata?: {
-		reasoning?: string;
-		[key: string]: any;
+export interface TextMessagePart extends MessagePart {
+	type: "text";
+	text: string;
+}
+
+/**
+ * Reasoning message part
+ */
+export interface ReasoningMessagePart extends MessagePart {
+	type: "reasoning";
+	reasoning: string;
+}
+
+/**
+ * Tool call message part
+ */
+export interface ToolCallMessagePart extends MessagePart {
+	type: "tool_call";
+	tool: string;
+	args: Record<string, unknown>;
+}
+
+/**
+ * Source message part
+ */
+export interface SourceMessagePart extends MessagePart {
+	type: "source";
+	source: {
+		url?: string;
+		title?: string;
+		[key: string]: unknown;
 	};
+}
+
+/**
+ * Union type of all message parts
+ */
+export type MessagePartUnion = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | SourceMessagePart;
+
+/**
+ * Enhanced message type with additional properties
+ * Aligned with Vercel AI SDK's message structure
+ */
+export interface Message {
+	/** Unique ID for the message */
+	id: string;
+	/** Role of the message sender: user, assistant, or system */
+	role: "user" | "assistant" | "system";
+	/** The main content of the message */
+	content: string;
+	/** Whether the message generation is complete */
+	isComplete?: boolean;
+	/** Timestamp when the message was created (in milliseconds) */
+	createdAt: number;
+	/** Optional array of structured message parts */
+	parts?: MessagePartUnion[];
+	/** Optional data associated with the message */
+	data?: Record<string, unknown>;
+	/** Optional annotations for the message */
+	annotations?: Array<{
+		type: string;
+		[key: string]: unknown;
+	}>;
+	/** Optional tool invocations */
+	toolInvocations?: Array<{
+		id: string;
+		type: string;
+		input: Record<string, unknown>;
+		state: "created" | "running" | "done" | "error";
+		output?: unknown;
+		error?: string;
+	}>;
 }
 
 /**
  * Stream chunk type
  */
 export interface StreamChunk {
-	type: "text-delta" | "reasoning";
-	text: string;
+	type: string;
+	text?: string;
 }
 
 /**
@@ -44,110 +112,71 @@ export interface GenerationConfig {
 	frequencyPenalty?: number;
 	presencePenalty?: number;
 	stopSequences?: string[];
-	[key: string]: any;
-}
-
-/**
- * Base model interface
- */
-export interface BaseModel {
-	id: string;
-	[key: string]: any;
+	[key: string]: unknown;
 }
 
 /**
  * Options for the useChat hook
  */
 export interface UseChatOptions {
+	/** The model to use for generation */
 	model: BaseModel;
-	initialMessages?: Message[];
+	/** Initial messages to populate the chat */
+	initialMessages?: BaseMessage[];
+	/** Initial value for the input field */
 	initialInput?: string;
+	/** Callback when an error occurs */
 	onError?: (error: Error) => void;
-	onFinish?: (messages: ExtendedMessage[]) => void;
+	/** Callback when generation finishes */
+	onFinish?: (messages: Message[]) => void;
+	/** Whether to abort the request when the component unmounts */
 	abortOnUnmount?: boolean;
+	/** Additional options for generation */
 	generationOptions?: Partial<GenerationConfig>;
 }
 
 /**
- * Return type for the useChat hook
+ * Helper functions for the useChat hook
  */
 export interface UseChatHelpers {
-	// State
-	messages: ExtendedMessage[];
-	isGenerating: boolean;
-	input: string;
-	error: Error | null;
-	status: "submitted" | "streaming" | "ready" | "error";
-
-	// Actions
-	append: (message?: string | Message, options?: Partial<GenerationConfig>) => Promise<void>;
-	clearChat: () => void;
-	stop: () => void;
-	setInput: (input: string) => void;
-	setMessages: (
-		messages: ExtendedMessage[] | ((current: ExtendedMessage[]) => ExtendedMessage[])
-	) => void;
-
-	// Convenience
-	handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-	handleSubmit: (e: React.FormEvent) => void;
-}
-
-/**
- * Function to stream text using the wandler streamText API
- */
-async function streamTextWithWandler(options: {
-	model: BaseModel;
+	/** Current messages in the chat */
 	messages: Message[];
-	abortSignal?: AbortSignal;
-	onChunk: (chunk: StreamChunk) => void;
-	[key: string]: any;
-}) {
-	const { model, messages, onChunk, abortSignal, ...generationOptions } = options;
-
-	try {
-		// Call the real streamText function directly
-		const result = await streamText({
-			model,
-			messages,
-			abortSignal,
-			...generationOptions,
-			onChunk: (chunk: any) => {
-				// Convert wandler chunk format to our format
-				let streamChunk: StreamChunk;
-
-				if (chunk.type === "text-delta") {
-					streamChunk = {
-						type: "text-delta",
-						text: chunk.text || chunk.textDelta || "",
-					};
-				} else if (chunk.type === "reasoning") {
-					streamChunk = {
-						type: "reasoning",
-						text: chunk.text || chunk.textDelta || "",
-					};
-				} else {
-					// Default to text-delta for unknown types
-					streamChunk = {
-						type: "text-delta",
-						text: chunk.text || chunk.textDelta || "",
-					};
-				}
-
-				// Call the onChunk callback
-				onChunk(streamChunk);
-			},
-		});
-
-		return result;
-	} catch (error) {
-		console.error("Error in streamTextWithWandler:", error);
-		throw error;
-	}
+	/** The error object of the API request */
+	error: Error | null;
+	/** Whether the API request is in progress */
+	isLoading: boolean;
+	/** The current input value */
+	input: string;
+	/** Function to handle form submission */
+	handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
+	/** Function to handle input change */
+	handleInputChange: (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => void;
+	/** Function to set input value */
+	setInput: React.Dispatch<React.SetStateAction<string>>;
+	/** Function to clear messages */
+	clearMessages: () => void;
+	/** Function to stop the AI response */
+	stop: () => void;
+	/** 
+	 * Status of the chat:
+	 * - idle: No request is in progress
+	 * - loading: Request submitted, waiting for first chunk
+	 * - streaming: Receiving chunks from the API
+	 * - error: An error occurred
+	 */
+	status: "idle" | "loading" | "streaming" | "error";
+	/** The current model being used */
+	model: BaseModel;
+	/** Function to add a message to the chat */
+	addMessage: (message: BaseMessage) => void;
+	/** Function to add a part to the last assistant message */
+	addMessagePart: (part: MessagePartUnion) => void;
+	/** The ID of the chat */
+	id: string;
 }
 
 /**
- * React hook for managing chat state with Wandler models
+ * A React hook for creating a chat interface
  */
 export function useChat({
 	model,
@@ -158,159 +187,225 @@ export function useChat({
 	abortOnUnmount = true,
 	generationOptions = {},
 }: UseChatOptions): UseChatHelpers {
-	// State
-	const [messages, setMessages] = useState<ExtendedMessage[]>(() => {
+	// Generate a unique ID for this chat instance
+	const [id] = useState(() => uuidv4());
+
+	const [messages, setMessages] = useState<Message[]>(() => {
+		// Map initial messages to Message format
 		const mappedMessages = initialMessages.map(msg => ({
 			...msg,
 			id: uuidv4(),
 			isComplete: true,
-			timestamp: Date.now(),
+			createdAt: Date.now(),
 		}));
 		return mappedMessages;
 	});
-	const [isGenerating, setIsGenerating] = useState(false);
 	const [input, setInput] = useState(initialInput);
+	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<Error | null>(null);
-	const [status, setStatus] = useState<"submitted" | "streaming" | "ready" | "error">("ready");
-
-	// Refs
+	const [status, setStatus] = useState<"idle" | "loading" | "streaming" | "error">("idle");
 	const abortControllerRef = useRef<AbortController | null>(null);
-	const streamRef = useRef<ReadableStreamDefaultReader<string> | null>(null);
-	const messagesRef = useRef<ExtendedMessage[]>(messages);
 
-	// Update messagesRef when messages change
-	useEffect(() => {
-		messagesRef.current = messages;
-	}, [messages]);
-
-	// Clean up on unmount
+	// Clean up the abort controller on unmount
 	useEffect(() => {
 		return () => {
 			if (abortOnUnmount) {
 				abortControllerRef.current?.abort();
-				streamRef.current?.cancel();
 			}
 		};
 	}, [abortOnUnmount]);
 
-	// Send a message and get a response
-	const append = useCallback(
-		async (messageInput?: string | Message, options?: Partial<GenerationConfig>) => {
-			// Process the input message
-			let content: string;
-			let role: "user" | "assistant" | "system" = "user";
-			
-			if (typeof messageInput === "string") {
-				content = messageInput || input;
-			} else if (messageInput && typeof messageInput === "object") {
-				content = messageInput.content;
-				role = messageInput.role;
-			} else {
-				content = input;
+	/**
+	 * Add a message to the chat
+	 */
+	const addMessage = useCallback((message: BaseMessage) => {
+		setMessages(prevMessages => [
+			...prevMessages,
+			{
+				...message,
+				id: uuidv4(),
+				isComplete: true,
+				createdAt: Date.now(),
+			},
+		]);
+	}, []);
+
+	/**
+	 * Add a part to the last assistant message
+	 */
+	const addMessagePart = useCallback((part: MessagePartUnion) => {
+		setMessages(prevMessages => {
+			const updatedMessages = [...prevMessages];
+			const lastAssistantIndex = updatedMessages
+				.map((msg, index) => ({ msg, index }))
+				.filter(({ msg }) => msg.role === "assistant")
+				.pop()?.index;
+
+			if (lastAssistantIndex !== undefined) {
+				const prevParts = updatedMessages[lastAssistantIndex].parts || [];
+				updatedMessages[lastAssistantIndex] = {
+					...updatedMessages[lastAssistantIndex],
+					parts: [...prevParts, part],
+				};
 			}
-			
-			if (!content.trim()) return;
+			return updatedMessages;
+		});
+	}, []);
+
+	/**
+	 * Clear all messages
+	 */
+	const clearMessages = useCallback(() => {
+		setMessages([]);
+	}, []);
+
+	/**
+	 * Stop the AI response
+	 */
+	const stop = useCallback(() => {
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort();
+			abortControllerRef.current = null;
+		}
+
+		// Update the last assistant message to mark it as complete
+		setMessages(prevMessages => {
+			const updatedMessages = [...prevMessages];
+			const lastAssistantIndex = updatedMessages
+				.map((msg, index) => ({ msg, index }))
+				.filter(({ msg }) => msg.role === "assistant")
+				.pop()?.index;
+
+			if (lastAssistantIndex !== undefined) {
+				updatedMessages[lastAssistantIndex] = {
+					...updatedMessages[lastAssistantIndex],
+					isComplete: true,
+				};
+			}
+			return updatedMessages;
+		});
+
+		setStatus("idle");
+		setIsLoading(false);
+	}, []);
+
+	/**
+	 * Handle form submission
+	 */
+	const handleSubmit = useCallback(
+		async (e: React.FormEvent<HTMLFormElement>) => {
+			e.preventDefault();
+
+			// Don't do anything if input is empty or loading
+			if (!input.trim() || isLoading) {
+				return;
+			}
+
+			// Create a new abort controller for this request
+			if (abortControllerRef.current) {
+				abortControllerRef.current.abort();
+			}
+			abortControllerRef.current = new AbortController();
+
+			// Create the user message
+			const content = input.trim();
+			const userMessage: Message = {
+				role: "user",
+				content,
+				id: uuidv4(),
+				isComplete: true,
+				createdAt: Date.now(),
+			};
+
+			// Add user message to chat
+			setMessages(prevMessages => [...prevMessages, userMessage]);
+			setInput("");
+			setIsLoading(true);
+			setStatus("loading");
+			setError(null);
 
 			try {
-				// Reset state
-				setError(null);
-				setIsGenerating(true);
-				setStatus("submitted");
-
-				// Create abort controller
-				abortControllerRef.current = new AbortController();
-				const abortSignal = abortControllerRef.current.signal;
-
-				// Create user message
-				const userMessage: ExtendedMessage = {
-					role,
-					content,
-					id: uuidv4(),
-					isComplete: true,
-					timestamp: Date.now(),
-				};
-
-				// Add user message to chat
-				setMessages(prev => {
-					const newMessages = [...prev, userMessage];
-					return newMessages;
-				});
-
-				// Clear input after sending if it was used
-				if (content === input) {
-					setInput("");
-				}
-
-				// Create assistant message that will be updated during streaming
-				const assistantMessage: ExtendedMessage = {
+				// Create the assistant message (empty initially)
+				const assistantMessage: Message = {
 					role: "assistant",
 					content: "",
 					id: uuidv4(),
 					isComplete: false,
-					timestamp: Date.now(),
+					createdAt: Date.now(),
 				};
 
 				// Get all current messages from state before adding the assistant message
-				// We need to do this to ensure we have the complete history
-				const currentMessages = [...messagesRef.current, userMessage];
+				const currentMessages = [...messages, userMessage];
 
-				// Add the initial empty assistant message to the chat
-				setMessages(prev => {
-					return [...prev, assistantMessage];
-				});
-				
-				// Prepare messages for the model - include all previous messages
-				// This ensures the full conversation history is maintained
-				const modelMessages: Message[] = currentMessages.map(({ role, content }) => ({ role, content }));
+				// Add the assistant message to the chat
+				setMessages(prevMessages => [...prevMessages, assistantMessage]);
+				setStatus("streaming");
 
-				// Log the messages for debugging
-				console.log("Current messages in state:", currentMessages);
-				console.log("Messages being sent to model:", modelMessages);
+				// Convert Messages to BaseMessages for the model
+				const messagesToSend: BaseMessage[] = currentMessages.map(msg => ({
+					role: msg.role,
+					content: msg.content,
+				}));
 
-				// Merge default options with provided options
-				const mergedOptions = { ...generationOptions, ...options };
-
-				// Start streaming
-				const result = await streamTextWithWandler({
+				// Stream the response from the model
+				await streamText({
 					model,
-					messages: modelMessages,
-					abortSignal,
-					...mergedOptions,
+					messages: messagesToSend,
+					abortSignal: abortControllerRef.current.signal,
+					...generationOptions,
 					onChunk: (chunk: StreamChunk) => {
-						// Update status to streaming after first chunk
-						setStatus("streaming");
-
-						// Handle different chunk types
-						if (chunk.type === "text-delta") {
-							// Update the assistant message content
+						if (chunk.type === "text" || chunk.type === "text-delta") {
+							// Update the assistant message with the new content
 							setMessages(prevMessages => {
 								const updatedMessages = [...prevMessages];
 								const assistantMessageIndex = updatedMessages.findIndex(msg => msg.id === assistantMessage.id);
 								
 								if (assistantMessageIndex !== -1) {
+									const prevContent = updatedMessages[assistantMessageIndex].content;
 									updatedMessages[assistantMessageIndex] = {
 										...updatedMessages[assistantMessageIndex],
-										content: updatedMessages[assistantMessageIndex].content + chunk.text,
+										content: prevContent + (chunk.text || ""),
 									};
 								}
 								
 								return updatedMessages;
 							});
 						} else if (chunk.type === "reasoning") {
-							// Update reasoning in metadata
+							// Update reasoning in parts
 							setMessages(prevMessages => {
 								const updatedMessages = [...prevMessages];
 								const assistantMessageIndex = updatedMessages.findIndex(msg => msg.id === assistantMessage.id);
 								
 								if (assistantMessageIndex !== -1) {
-									const prevReasoning = updatedMessages[assistantMessageIndex].metadata?.reasoning || "";
-									updatedMessages[assistantMessageIndex] = {
-										...updatedMessages[assistantMessageIndex],
-										metadata: {
-											...updatedMessages[assistantMessageIndex].metadata,
-											reasoning: prevReasoning + chunk.text,
-										},
-									};
+									// Check if there's already a reasoning part
+									const prevParts = updatedMessages[assistantMessageIndex].parts || [];
+									const reasoningPartIndex = prevParts.findIndex(part => part.type === "reasoning");
+									
+									if (reasoningPartIndex !== -1) {
+										// Update existing reasoning part
+										const updatedParts = [...prevParts];
+										const reasoningPart = updatedParts[reasoningPartIndex] as ReasoningMessagePart;
+										updatedParts[reasoningPartIndex] = {
+											...reasoningPart,
+											reasoning: reasoningPart.reasoning + (chunk.text || ""),
+										};
+										
+										updatedMessages[assistantMessageIndex] = {
+											...updatedMessages[assistantMessageIndex],
+											parts: updatedParts,
+										};
+									} else {
+										// Add new reasoning part
+										const newPart: ReasoningMessagePart = {
+											type: "reasoning",
+											reasoning: chunk.text || "",
+										};
+										
+										updatedMessages[assistantMessageIndex] = {
+											...updatedMessages[assistantMessageIndex],
+											parts: [...prevParts, newPart],
+										};
+									}
 								}
 								
 								return updatedMessages;
@@ -319,141 +414,70 @@ export function useChat({
 					},
 				});
 
-				// Store stream reader for cancellation if available
-				if (result.textStream && typeof result.textStream.getReader === "function") {
-					streamRef.current = result.textStream.getReader();
-				}
-
-				// Wait for completion if available
-				if (result.result) {
-					try {
-						await result.result;
-					} catch (error) {
-						console.error("Error while waiting for result promise:", error);
-						throw error;
-					}
-				}
-
-				// Mark message as complete
+				// Mark the assistant message as complete
 				setMessages(prevMessages => {
 					const updatedMessages = [...prevMessages];
 					const assistantMessageIndex = updatedMessages.findIndex(msg => msg.id === assistantMessage.id);
 					
 					if (assistantMessageIndex !== -1) {
-						// Check if the assistant message has content
-						if (!updatedMessages[assistantMessageIndex].content || updatedMessages[assistantMessageIndex].content.trim() === "") {
-							// Remove empty assistant message
-							updatedMessages.splice(assistantMessageIndex, 1);
-							setIsGenerating(false);
-							setStatus("ready");
-							return updatedMessages;
-						}
-						
-						// Mark as complete
 						updatedMessages[assistantMessageIndex] = {
 							...updatedMessages[assistantMessageIndex],
 							isComplete: true,
 						};
 					}
 					
-					// Update state
-					setIsGenerating(false);
-					setStatus("ready");
-					
-					// Call onFinish with the updated messages
-					onFinish?.(updatedMessages);
-					
 					return updatedMessages;
 				});
-			} catch (err) {
-				// Handle errors
-				const error = err instanceof Error ? err : new Error(String(err));
 
-				console.error("Error during message processing:", error.message);
+				// Reset state
+				setIsLoading(false);
+				setStatus("idle");
+				abortControllerRef.current = null;
 
-				// Don't treat aborts as errors in the UI
-				if (error.name === "AbortError") {
-					setIsGenerating(false);
-					setStatus("ready");
-					return;
+				// Call onFinish callback if provided
+				if (onFinish) {
+					const allMessages = [...messages, userMessage, {
+						...assistantMessage,
+						isComplete: true,
+					}];
+					onFinish(allMessages);
 				}
-
-				// Set error state
-				setError(error);
+			} catch (err: unknown) {
+				setError(err instanceof Error ? err : new Error(String(err)));
 				setStatus("error");
-				onError?.(error);
+				setIsLoading(false);
+				abortControllerRef.current = null;
 
-				// Reset generation state
-				setIsGenerating(false);
+				// Call onError callback if provided
+				if (onError && err instanceof Error) {
+					onError(err);
+				}
 			}
 		},
-		[input, messages, model, generationOptions, onError, onFinish]
+		[input, isLoading, messages, model, onError, onFinish, generationOptions]
 	);
 
-	// Stop generation
-	const stop = useCallback(() => {
-		abortControllerRef.current?.abort();
-		streamRef.current?.cancel();
-		setIsGenerating(false);
-		setStatus("ready");
-		
-		// Mark the last assistant message as complete if it exists
-		setMessages(prevMessages => {
-			const updatedMessages = [...prevMessages];
-			const lastAssistantIndex = updatedMessages.findIndex(
-				msg => msg.role === "assistant" && !msg.isComplete
-			);
-			
-			if (lastAssistantIndex !== -1) {
-				updatedMessages[lastAssistantIndex] = {
-					...updatedMessages[lastAssistantIndex],
-					isComplete: true,
-				};
-			}
-			
-			return updatedMessages;
-		});
-	}, []);
-
-	// Clear chat history
-	const clearChat = useCallback(() => {
-		stop();
-		setMessages([]);
-		setError(null);
-		setStatus("ready");
-	}, [stop]);
-
-	// Handle input change
-	const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+	/**
+	 * Handle input change
+	 */
+	const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => {
 		setInput(e.target.value);
 	}, []);
 
-	// Handle form submission
-	const handleSubmit = useCallback(
-		(e: React.FormEvent) => {
-			e.preventDefault();
-			append(input);
-		},
-		[append, input]
-	);
-
 	return {
-		// State
 		messages,
-		isGenerating,
 		input,
-		error,
-		status,
-
-		// Actions
-		append,
-		clearChat,
-		stop,
-		setInput,
-		setMessages,
-
-		// Convenience
 		handleInputChange,
 		handleSubmit,
+		isLoading,
+		error,
+		setInput,
+		stop,
+		clearMessages,
+		status,
+		model,
+		addMessage,
+		addMessagePart,
+		id,
 	};
 }

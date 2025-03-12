@@ -13,11 +13,12 @@
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"!dist/tsconfig.tsbuildinfo"
 	],
 	"scripts": {
 		"dev": "vite",
-		"build": "tsc && vite build",
+		"build": "vite build && tsc",
 		"test": "jest"
 	},
 	"keywords": [

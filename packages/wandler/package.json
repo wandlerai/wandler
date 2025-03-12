@@ -14,11 +14,12 @@
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"!dist/tsconfig.tsbuildinfo"
 	],
 	"scripts": {
 		"dev": "vite",
-		"build": "tsc && vite build && vite build --config vite.worker.config.ts",
+		"build": "vite build && tsc",
 		"test": "jest -c ../../jest.config.cjs",
 		"test:watch": "jest -c ../../jest.config.cjs --watch",
 		"test:coverage": "jest -c ../../jest.config.cjs --coverage",

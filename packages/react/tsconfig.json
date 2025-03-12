@@ -6,10 +6,11 @@
 		"lib": ["ES2020", "DOM", "DOM.Iterable"],
 		"skipLibCheck": true,
 		"moduleResolution": "bundler",
-		"allowImportingTsExtensions": true,
+		"allowImportingTsExtensions": false,
 		"resolveJsonModule": true,
 		"isolatedModules": true,
 		"declaration": true,
+		"declarationMap": false,
 		"emitDeclarationOnly": true,
 		"outDir": "dist",
 		"strict": true,
@@ -19,8 +20,14 @@
 		"jsx": "react-jsx",
 		"baseUrl": ".",
 		"paths": {
-			"@wandler/*": ["./*"]
-		}
+			"@wandler/*": ["../wandler/*"],
+			"@wandler": ["../wandler"]
+		},
+		"composite": true,
+		"rootDir": "."
 	},
-	"include": ["**/*.ts", "**/*.tsx"]
+	"include": ["index.ts", "hooks/**/*.ts", "hooks/**/*.tsx"],
+	"references": [
+		{ "path": "../wandler" }
+	]
 }

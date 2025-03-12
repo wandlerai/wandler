@@ -17,7 +17,7 @@ export default defineConfig({
 		},
 		outDir: resolve(__dirname, "dist"),
 		emptyOutDir: true,
-		sourcemap: true,
+		sourcemap: false,
 		rollupOptions: {
 			external: ["@huggingface/transformers"],
 			output: {
