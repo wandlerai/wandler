@@ -57,7 +57,11 @@ export interface SourceMessagePart extends MessagePart {
 /**
  * Union type of all message parts
  */
-export type MessagePartUnion = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | SourceMessagePart;
+export type MessagePartUnion =
+	| TextMessagePart
+	| ReasoningMessagePart
+	| ToolCallMessagePart
+	| SourceMessagePart;
 
 /**
  * Enhanced message type with additional properties
@@ -150,14 +154,16 @@ export interface UseChatHelpers {
 	/** Function to handle form submission */
 	handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 	/** Function to handle input change */
-	handleInputChange: (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => void;
+	handleInputChange: (
+		e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>
+	) => void;
 	/** Function to set input value */
 	setInput: React.Dispatch<React.SetStateAction<string>>;
 	/** Function to clear messages */
 	clearMessages: () => void;
 	/** Function to stop the AI response */
 	stop: () => void;
-	/** 
+	/**
 	 * Status of the chat:
 	 * - idle: No request is in progress
 	 * - loading: Request submitted, waiting for first chunk
@@ -348,7 +354,7 @@ export function useChat({
 				}));
 
 				// Stream the response from the model
-				await streamText({
+				const { result } = await streamText({
 					model,
 					messages: messagesToSend,
 					abortSignal: abortControllerRef.current.signal,
@@ -358,8 +364,10 @@ export function useChat({
 							// Update the assistant message with the new content
 							setMessages(prevMessages => {
 								const updatedMessages = [...prevMessages];
-								const assistantMessageIndex = updatedMessages.findIndex(msg => msg.id === assistantMessage.id);
-								
+								const assistantMessageIndex = updatedMessages.findIndex(
+									msg => msg.id === assistantMessage.id
+								);
+
 								if (assistantMessageIndex !== -1) {
 									const prevContent = updatedMessages[assistantMessageIndex].content;
 									updatedMessages[assistantMessageIndex] = {
@@ -367,20 +375,22 @@ export function useChat({
 										content: prevContent + (chunk.text || ""),
 									};
 								}
-								
+
 								return updatedMessages;
 							});
 						} else if (chunk.type === "reasoning") {
 							// Update reasoning in parts
 							setMessages(prevMessages => {
 								const updatedMessages = [...prevMessages];
-								const assistantMessageIndex = updatedMessages.findIndex(msg => msg.id === assistantMessage.id);
-								
+								const assistantMessageIndex = updatedMessages.findIndex(
+									msg => msg.id === assistantMessage.id
+								);
+
 								if (assistantMessageIndex !== -1) {
 									// Check if there's already a reasoning part
 									const prevParts = updatedMessages[assistantMessageIndex].parts || [];
 									const reasoningPartIndex = prevParts.findIndex(part => part.type === "reasoning");
-									
+
 									if (reasoningPartIndex !== -1) {
 										// Update existing reasoning part
 										const updatedParts = [...prevParts];
@@ -389,7 +399,7 @@ export function useChat({
 											...reasoningPart,
 											reasoning: reasoningPart.reasoning + (chunk.text || ""),
 										};
-										
+
 										updatedMessages[assistantMessageIndex] = {
 											...updatedMessages[assistantMessageIndex],
 											parts: updatedParts,
@@ -400,48 +410,57 @@ export function useChat({
 											type: "reasoning",
 											reasoning: chunk.text || "",
 										};
-										
+
 										updatedMessages[assistantMessageIndex] = {
 											...updatedMessages[assistantMessageIndex],
 											parts: [...prevParts, newPart],
 										};
 									}
 								}
-								
+
 								return updatedMessages;
 							});
 						}
 					},
 				});
 
-				// Mark the assistant message as complete
-				setMessages(prevMessages => {
-					const updatedMessages = [...prevMessages];
-					const assistantMessageIndex = updatedMessages.findIndex(msg => msg.id === assistantMessage.id);
-					
-					if (assistantMessageIndex !== -1) {
-						updatedMessages[assistantMessageIndex] = {
-							...updatedMessages[assistantMessageIndex],
-							isComplete: true,
-						};
+				// Wait for the result Promise to resolve, which indicates streaming is complete
+				await result.then(generationResult => {
+					// Mark the assistant message as complete
+					setMessages(prevMessages => {
+						const updatedMessages = [...prevMessages];
+						const assistantMessageIndex = updatedMessages.findIndex(
+							msg => msg.id === assistantMessage.id
+						);
+
+						if (assistantMessageIndex !== -1) {
+							updatedMessages[assistantMessageIndex] = {
+								...updatedMessages[assistantMessageIndex],
+								isComplete: true,
+							};
+						}
+
+						return updatedMessages;
+					});
+
+					// Reset state
+					setIsLoading(false);
+					setStatus("idle");
+					abortControllerRef.current = null;
+
+					// Call onFinish callback if provided
+					if (onFinish) {
+						const allMessages = [
+							...messages,
+							userMessage,
+							{
+								...assistantMessage,
+								isComplete: true,
+							},
+						];
+						onFinish(allMessages);
 					}
-					
-					return updatedMessages;
 				});
-
-				// Reset state
-				setIsLoading(false);
-				setStatus("idle");
-				abortControllerRef.current = null;
-
-				// Call onFinish callback if provided
-				if (onFinish) {
-					const allMessages = [...messages, userMessage, {
-						...assistantMessage,
-						isComplete: true,
-					}];
-					onFinish(allMessages);
-				}
 			} catch (err: unknown) {
 				setError(err instanceof Error ? err : new Error(String(err)));
 				setStatus("error");
@@ -460,9 +479,12 @@ export function useChat({
 	/**
 	 * Handle input change
 	 */
-	const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => {
-		setInput(e.target.value);
-	}, []);
+	const handleInputChange = useCallback(
+		(e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => {
+			setInput(e.target.value);
+		},
+		[]
+	);
 
 	return {
 		messages,
