@@ -425,7 +425,7 @@ export function useChat({
 				});
 
 				// Wait for the result Promise to resolve, which indicates streaming is complete
-				await result.then(generationResult => {
+				await result.then(() => {
 					// Mark the assistant message as complete
 					setMessages(prevMessages => {
 						const updatedMessages = [...prevMessages];
