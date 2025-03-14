@@ -4,7 +4,6 @@ import { defineConfig } from "vite";
 export default defineConfig({
 	root: "../../tests/demo",
 	server: {
-		open: "chat.html",
 		host: "127.0.0.1",
 		port: 3001,
 	},
